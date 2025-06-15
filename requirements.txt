@@ -38,3 +38,8 @@ PyYAML
 
 # Segurança e rate limiting (opcional)
 slowapi
+
+python-dotenv
+bcrypt
+pyjwt
+aiosqlite
