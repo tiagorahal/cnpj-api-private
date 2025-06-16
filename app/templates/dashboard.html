@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Painel de Usuários</title>
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- DataTables CSS (opcional, pode personalizar depois) -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <style>
+      body { background-color: #18181b; }
+      .dataTables_wrapper .dataTables_filter input {
+          color: #e5e7eb; background: #27272a; border: 1px solid #3f3f46;
+      }
+      .dataTables_wrapper .dataTables_length select {
+          color: #e5e7eb; background: #27272a; border: 1px solid #3f3f46;
+      }
+      .dataTables_wrapper .dataTables_paginate .paginate_button {
+          color: #a3e635 !important;
+      }
+    </style>
+</head>
+<body class="bg-zinc-900 text-zinc-200 min-h-screen">
+    <div class="container mx-auto py-8">
+        <h2 class="text-3xl font-bold mb-6 text-center text-lime-400">Painel de Gerenciamento de Usuários</h2>
+        <div class="overflow-x-auto rounded-lg shadow-lg bg-zinc-800 ring-1 ring-zinc-700">
+            <table id="tabela-usuarios" class="min-w-full table-auto text-sm">
+                <thead class="bg-zinc-700">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-zinc-300">Email</th>
+                        <th class="px-4 py-3 text-left font-semibold text-zinc-300">Ativo?</th>
+                        <th class="px-4 py-3 text-left font-semibold text-zinc-300">Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for user in users %}
+                    <tr class="border-b border-zinc-700">
+                        <td class="px-4 py-2">{{ user['email'] }}</td>
+                        <td class="px-4 py-2">
+                            <span class="font-semibold {% if user['is_active'] %}text-lime-400{% else %}text-red-400{% endif %}">
+                                {{ 'Sim' if user['is_active'] else 'Não' }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2">
+                            <form method="post" action="/toggle">
+                                <input type="hidden" name="id" value="{{ user['id'] }}">
+                                <input type="hidden" name="is_active" value="{{ user['is_active'] }}">
+                                <button
+                                    class="px-4 py-1 rounded transition
+                                        {% if user['is_active'] %}
+                                            bg-red-600 hover:bg-red-700 text-white
+                                        {% else %}
+                                            bg-lime-600 hover:bg-lime-700 text-zinc-900
+                                        {% endif %}"
+                                    type="submit">
+                                    {% if user['is_active'] %}Desativar{% else %}Ativar{% endif %}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- jQuery + DataTables JS -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script>
+      $(document).ready(function() {
+        $('#tabela-usuarios').DataTable({
+          "language": {
+            "url": "//cdn.datatables.net/plug-ins/1.13.7/i18n/pt-BR.json"
+          }
+        });
+      });
+    </script>
+</body>
+</html>

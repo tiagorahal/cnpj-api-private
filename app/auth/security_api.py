@@ -42,7 +42,10 @@ def verify_password(password: str, hashed: str) -> bool:
 def create_access_token(data: dict, expires_delta=None):
     to_encode = data.copy()
     expire = datetime.datetime.utcnow() + (expires_delta or datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
+    to_encode.update({
+        "exp": expire,
+        "jti": secrets.token_hex(16)
+    })
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 @router.post("/register")

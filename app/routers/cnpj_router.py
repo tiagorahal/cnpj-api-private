@@ -271,3 +271,88 @@ async def listar_por_uf(
             "total_retornados": len(lista),
             "resultado": lista
         }
+
+from fastapi import Query
+
+@router.get("/municipio/{nome_municipio}")
+async def listar_por_municipio(
+    nome_municipio: str,
+    page: int = Query(1, ge=1),
+    user: str = Depends(get_current_user)
+):
+    page_size = 100
+    offset = (page - 1) * page_size
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        # Descobre o(s) código(s) do município pelo nome (case-insensitive)
+        cursor = await db.execute(
+            "SELECT codigo FROM municipio WHERE descricao LIKE ?",
+            (f"%{nome_municipio.upper()}%",)
+        )
+        municipios = await cursor.fetchall()
+        await cursor.close()
+
+        if not municipios:
+            return {"municipio": nome_municipio, "resultado": []}
+
+        codigos = [str(row["codigo"]) for row in municipios]
+
+        # Busca os CNPJs para esses códigos de município
+        cnpjs = []
+        for codigo in codigos:
+            cur_cnpj = await db.execute(
+                "SELECT cnpj FROM estabelecimento WHERE municipio = ? LIMIT ? OFFSET ?",
+                (codigo, page_size, offset)
+            )
+            results = await cur_cnpj.fetchall()
+            await cur_cnpj.close()
+            cnpjs.extend([row["cnpj"] for row in results])
+
+        lista = []
+        for cnpj in cnpjs:
+            item = await montar_cnpj_completo(db, cnpj)
+            if item:
+                lista.append(item)
+
+        return {
+            "municipio": nome_municipio,
+            "codigos_encontrados": codigos,
+            "page": page,
+            "page_size": page_size,
+            "total_retornados": len(lista),
+            "resultado": lista
+        }
+
+@router.get("/cnae_principal/{cnae}")
+async def listar_por_cnae_principal(
+    cnae: str,
+    page: int = Query(1, ge=1),
+    user: str = Depends(get_current_user)
+):
+    cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
+    page_size = 100
+    offset = (page - 1) * page_size
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT cnpj FROM estabelecimento WHERE cnae_fiscal = ? LIMIT ? OFFSET ?",
+            (cnae_num, page_size, offset)
+        )
+        results = await cursor.fetchall()
+        await cursor.close()
+
+        lista = []
+        for r in results:
+            cnpj = r["cnpj"]
+            item = await montar_cnpj_completo(db, cnpj)
+            if item:
+                lista.append(item)
+        return {
+            "cnae_principal": cnae_num,
+            "page": page,
+            "page_size": page_size,
+            "total_retornados": len(lista),
+            "resultado": lista
+        }
