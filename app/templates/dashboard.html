@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
+    <meta charset="UTF-8">
     <title>Painel de Usuários</title>
-    <!-- Tailwind CDN -->
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- DataTables CSS (opcional, pode personalizar depois) -->
+    <!-- DataTables CSS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
     <style>
       body { background-color: #18181b; }
@@ -27,7 +28,7 @@
                 <thead class="bg-zinc-700">
                     <tr>
                         <th class="px-4 py-3 text-left font-semibold text-zinc-300">Email</th>
-                        <th class="px-4 py-3 text-left font-semibold text-zinc-300">Ativo?</th>
+                        <th class="px-4 py-3 text-left font-semibold text-zinc-300">Status</th>
                         <th class="px-4 py-3 text-left font-semibold text-zinc-300">Ação</th>
                     </tr>
                 </thead>
@@ -36,26 +37,57 @@
                     <tr class="border-b border-zinc-700">
                         <td class="px-4 py-2">{{ user['email'] }}</td>
                         <td class="px-4 py-2">
-                            <span class="font-semibold {% if user['is_active'] %}text-lime-400{% else %}text-red-400{% endif %}">
-                                {{ 'Sim' if user['is_active'] else 'Não' }}
+                            <span class="font-semibold
+                                {% if user['is_active'] == 2 %}text-cyan-400
+                                {% elif user['is_active'] == 1 %}text-lime-400
+                                {% else %}text-red-400{% endif %}">
+                                {% if user['is_active'] == 2 %}
+                                    Ilimitado
+                                {% elif user['is_active'] == 1 %}
+                                    Limitado
+                                {% else %}
+                                    Desativado
+                                {% endif %}
                             </span>
                         </td>
                         <td class="px-4 py-2">
-                            <form method="post" action="/toggle">
-                                <input type="hidden" name="id" value="{{ user['id'] }}">
-                                <input type="hidden" name="is_active" value="{{ user['is_active'] }}">
-                                <button
-                                    class="px-4 py-1 rounded transition
-                                        {% if user['is_active'] %}
-                                            bg-red-600 hover:bg-red-700 text-white
-                                        {% else %}
-                                            bg-lime-600 hover:bg-lime-700 text-zinc-900
-                                        {% endif %}"
-                                    type="submit">
-                                    {% if user['is_active'] %}Desativar{% else %}Ativar{% endif %}
-                                </button>
-                            </form>
+                            <div class="flex gap-2">
+                                <!-- Botão Desativado -->
+                                <form method="post" action="/toggle">
+                                    <input type="hidden" name="id" value="{{ user['id'] }}">
+                                    <input type="hidden" name="is_active" value="0">
+                                    <button
+                                        type="submit"
+                                        class="px-3 py-1 rounded font-medium
+                                            {% if user['is_active'] == 0 %}bg-red-700 border-2 border-white shadow-lg text-white{% else %}bg-red-700 hover:bg-red-800 text-white{% endif %}">
+                                        Desativado
+                                    </button>
+                                </form>
+                                <!-- Botão Limitado -->
+                                <form method="post" action="/toggle">
+                                    <input type="hidden" name="id" value="{{ user['id'] }}">
+                                    <input type="hidden" name="is_active" value="1">
+                                    <button
+                                        type="submit"
+                                        class="px-3 py-1 rounded font-medium
+                                            {% if user['is_active'] == 1 %}bg-lime-600 border-2 border-white shadow-lg text-zinc-900{% else %}bg-lime-600 hover:bg-lime-700 text-zinc-900{% endif %}">
+                                        Limitado
+                                    </button>
+                                </form>
+                                <!-- Botão Ilimitado -->
+                                <form method="post" action="/toggle">
+                                    <input type="hidden" name="id" value="{{ user['id'] }}">
+                                    <input type="hidden" name="is_active" value="2">
+                                    <button
+                                        type="submit"
+                                        class="px-3 py-1 rounded font-medium
+                                            {% if user['is_active'] == 2 %}bg-cyan-600 border-2 border-white shadow-lg text-zinc-900{% else %}bg-cyan-600 hover:bg-cyan-700 text-zinc-900{% endif %}">
+                                        Ilimitado
+                                    </button>
+                                </form>
+                            </div>
                         </td>
+
                     </tr>
                 {% endfor %}
                 </tbody>

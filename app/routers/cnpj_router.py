@@ -2,6 +2,9 @@ import aiosqlite
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.security import OAuth2PasswordBearer
 import os
+from ..auth.dependencies import get_current_user, check_and_update_rate_limit
+import aiosqlite
+from fastapi import APIRouter, Depends, Query
 import re
 import jwt
 from dotenv import load_dotenv
@@ -93,26 +96,6 @@ async def lookup_descricao(db, tabela, codigo):
         return f"{codigo} - {row['descricao']}"
     else:
         return codigo
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload["sub"]
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-    async with aiosqlite.connect(DATABASE_AUTH) as db:
-        db.row_factory = aiosqlite.Row
-        result = await db.execute("SELECT is_active FROM users WHERE email = ?", (email,))
-        user = await result.fetchone()
-        await result.close()
-
-        if not user:
-            raise HTTPException(status_code=401, detail="Usuário não encontrado")
-        if not user["is_active"]:
-            raise HTTPException(status_code=403, detail="Conta ainda não está ativa")
-
-    return email
 
 async def montar_cnpj_completo(db, cnpj):
     # Busca dados do estabelecimento
@@ -229,10 +212,11 @@ async def montar_cnpj_completo(db, cnpj):
     return {"empresa": empresa, "socios": socios_list}
 
 @router.get("/{cnpj}")
-async def consultar_cnpj(cnpj: str, user: str = Depends(get_current_user)):
+async def consultar_cnpj(cnpj: str, user: dict = Depends(get_current_user)):
     cnpj = sanitize_cnpj(cnpj)
     async with aiosqlite.connect(DATABASE_PATH) as db:
         db.row_factory = aiosqlite.Row
+        await check_and_update_rate_limit(user, qtd_reqs=1)
         item = await montar_cnpj_completo(db, cnpj)
         if not item:
             raise HTTPException(status_code=404, detail="CNPJ não encontrado")
@@ -242,7 +226,7 @@ async def consultar_cnpj(cnpj: str, user: str = Depends(get_current_user)):
 async def listar_por_uf(
     uf: str,
     page: int = Query(1, ge=1),
-    user: str = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     uf = uf.upper().strip()
     page_size = 100
@@ -257,6 +241,7 @@ async def listar_por_uf(
         )
         results = await cursor.fetchall()
         await cursor.close()
+        await check_and_update_rate_limit(user, qtd_reqs=len(results))  # [ADICIONADA]
 
         lista = []
         for r in results:
@@ -278,7 +263,7 @@ from fastapi import Query
 async def listar_por_municipio(
     nome_municipio: str,
     page: int = Query(1, ge=1),
-    user: str = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     page_size = 100
     offset = (page - 1) * page_size
@@ -309,6 +294,8 @@ async def listar_por_municipio(
             await cur_cnpj.close()
             cnpjs.extend([row["cnpj"] for row in results])
 
+        await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))  # [ADICIONADA]
+
         lista = []
         for cnpj in cnpjs:
             item = await montar_cnpj_completo(db, cnpj)
@@ -328,7 +315,7 @@ async def listar_por_municipio(
 async def listar_por_cnae_principal(
     cnae: str,
     page: int = Query(1, ge=1),
-    user: str = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
     page_size = 100
@@ -342,6 +329,8 @@ async def listar_por_cnae_principal(
         )
         results = await cursor.fetchall()
         await cursor.close()
+
+        await check_and_update_rate_limit(user, qtd_reqs=len(results))  # [ADICIONADA]
 
         lista = []
         for r in results:
