@@ -1,3 +1,4 @@
 # Bancos de dados locais
 database/cnpj.db
 database/security.db
+database/cnpj_links_ete.db

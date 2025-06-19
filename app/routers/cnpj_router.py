@@ -57,6 +57,12 @@ QUALIFICACAO_REPRESENTANTE_MAP = {
     "00": "00 - Não informada"
 }
 
+# Permite apenas usuários ativos (is_active 1 ou 2)
+async def require_active_user(user: dict = Depends(get_current_user)):
+    if user['is_active'] not in [1, 2]:
+        raise HTTPException(403, "Acesso restrito a usuários ativos (planos limitados ou ilimitados).")
+    return user
+
 def sanitize_cnpj(cnpj: str) -> str:
     cnpj_numbers = re.sub(r"\D", "", cnpj).zfill(14)
     if len(cnpj_numbers) != 14:
@@ -226,10 +232,10 @@ async def consultar_cnpj(cnpj: str, user: dict = Depends(get_current_user)):
 async def listar_por_uf(
     uf: str,
     page: int = Query(1, ge=1),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(require_active_user)
 ):
     uf = uf.upper().strip()
-    page_size = 50
+    page_size = 10
     offset = (page - 1) * page_size
 
     async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -263,9 +269,9 @@ from fastapi import Query
 async def listar_por_municipio(
     nome_municipio: str,
     page: int = Query(1, ge=1),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(require_active_user)
 ):
-    page_size = 50
+    page_size = 10
     offset = (page - 1) * page_size
 
     async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -315,10 +321,10 @@ async def listar_por_municipio(
 async def listar_por_cnae_principal(
     cnae: str,
     page: int = Query(1, ge=1),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(require_active_user)
 ):
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 50
+    page_size = 10
     offset = (page - 1) * page_size
 
     async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -350,10 +356,10 @@ async def listar_por_cnae_principal(
 async def listar_por_cnae_secundaria(
     cnae: str,
     page: int = Query(1, ge=1),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(require_active_user)
 ):
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 50
+    page_size = 10
     offset = (page - 1) * page_size
 
     # Monta padrão LIKE: pega exatos os 7 números, separados por vírgula ou isolados no campo
@@ -390,6 +396,196 @@ async def listar_por_cnae_secundaria(
                 lista.append(item)
         return {
             "cnae_secundaria": cnae_num,
+            "page": page,
+            "page_size": page_size,
+            "total_retornados": len(lista),
+            "resultado": lista
+        }
+
+# 1. UF + CNAE PRINCIPAL
+@router.get("/uf/{uf}/cnae_principal/{cnae}")
+async def listar_uf_cnae_principal(
+    uf: str,
+    cnae: str,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_active_user)
+):
+    cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
+    page_size = 10
+    offset = (page - 1) * page_size
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT cnpj FROM estabelecimento WHERE uf = ? AND cnae_fiscal = ? LIMIT ? OFFSET ?",
+            (uf.upper().strip(), cnae_num, page_size, offset)
+        )
+        results = await cursor.fetchall()
+        await cursor.close()
+        await check_and_update_rate_limit(user, qtd_reqs=len(results))
+
+        lista = []
+        for r in results:
+            cnpj = r["cnpj"]
+            item = await montar_cnpj_completo(db, cnpj)
+            if item:
+                lista.append(item)
+        return {
+            "uf": uf,
+            "cnae_principal": cnae_num,
+            "page": page,
+            "page_size": page_size,
+            "total_retornados": len(lista),
+            "resultado": lista
+        }
+
+# 2. UF + CNAE SECUNDÁRIA
+@router.get("/uf/{uf}/cnae_secundaria/{cnae}")
+async def listar_uf_cnae_secundaria(
+    uf: str,
+    cnae: str,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_active_user)
+):
+    cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
+    page_size = 10
+    offset = (page - 1) * page_size
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        like_pattern = f"%,{cnae_num},%"
+        cursor = await db.execute(
+            """
+            SELECT cnpj FROM estabelecimento
+            WHERE uf = ?
+            AND (',' || REPLACE(cnae_fiscal_secundaria, ' ', '') || ',') LIKE ?
+            LIMIT ? OFFSET ?
+            """,
+            (uf.upper().strip(), like_pattern, page_size, offset)
+        )
+        results = await cursor.fetchall()
+        await cursor.close()
+        cnpjs = [row["cnpj"] for row in results]
+
+        await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
+
+        lista = []
+        for cnpj in cnpjs:
+            item = await montar_cnpj_completo(db, cnpj)
+            if item:
+                lista.append(item)
+        return {
+            "uf": uf,
+            "cnae_secundaria": cnae_num,
+            "page": page,
+            "page_size": page_size,
+            "total_retornados": len(lista),
+            "resultado": lista
+        }
+
+# 3. MUNICÍPIO + CNAE PRINCIPAL
+@router.get("/municipio/{nome_municipio}/cnae_principal/{cnae}")
+async def listar_municipio_cnae_principal(
+    nome_municipio: str,
+    cnae: str,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_active_user)
+):
+    cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
+    page_size = 10
+    offset = (page - 1) * page_size
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT codigo FROM municipio WHERE descricao LIKE ?",
+            (f"%{nome_municipio.upper()}%",)
+        )
+        municipios = await cursor.fetchall()
+        await cursor.close()
+        if not municipios:
+            return {"municipio": nome_municipio, "resultado": []}
+
+        codigos = [str(row["codigo"]) for row in municipios]
+
+        cnpjs = []
+        for codigo in codigos:
+            cur_cnpj = await db.execute(
+                "SELECT cnpj FROM estabelecimento WHERE municipio = ? AND cnae_fiscal = ? LIMIT ? OFFSET ?",
+                (codigo, cnae_num, page_size, offset)
+            )
+            results = await cur_cnpj.fetchall()
+            await cur_cnpj.close()
+            cnpjs.extend([row["cnpj"] for row in results])
+
+        await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
+
+        lista = []
+        for cnpj in cnpjs:
+            item = await montar_cnpj_completo(db, cnpj)
+            if item:
+                lista.append(item)
+        return {
+            "municipio": nome_municipio,
+            "cnae_principal": cnae_num,
+            "codigos_encontrados": codigos,
+            "page": page,
+            "page_size": page_size,
+            "total_retornados": len(lista),
+            "resultado": lista
+        }
+
+# 4. MUNICÍPIO + CNAE SECUNDÁRIA
+@router.get("/municipio/{nome_municipio}/cnae_secundaria/{cnae}")
+async def listar_municipio_cnae_secundaria(
+    nome_municipio: str,
+    cnae: str,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_active_user)
+):
+    cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
+    page_size = 10
+    offset = (page - 1) * page_size
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT codigo FROM municipio WHERE descricao LIKE ?",
+            (f"%{nome_municipio.upper()}%",)
+        )
+        municipios = await cursor.fetchall()
+        await cursor.close()
+        if not municipios:
+            return {"municipio": nome_municipio, "resultado": []}
+
+        codigos = [str(row["codigo"]) for row in municipios]
+        cnpjs = []
+        like_pattern = f"%,{cnae_num},%"
+        for codigo in codigos:
+            cur_cnpj = await db.execute(
+                """
+                SELECT cnpj FROM estabelecimento
+                WHERE municipio = ?
+                AND (',' || REPLACE(cnae_fiscal_secundaria, ' ', '') || ',') LIKE ?
+                LIMIT ? OFFSET ?
+                """,
+                (codigo, like_pattern, page_size, offset)
+            )
+            results = await cur_cnpj.fetchall()
+            await cur_cnpj.close()
+            cnpjs.extend([row["cnpj"] for row in results])
+
+        await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
+
+        lista = []
+        for cnpj in cnpjs:
+            item = await montar_cnpj_completo(db, cnpj)
+            if item:
+                lista.append(item)
+        return {
+            "municipio": nome_municipio,
+            "cnae_secundaria": cnae_num,
+            "codigos_encontrados": codigos,
             "page": page,
             "page_size": page_size,
             "total_retornados": len(lista),

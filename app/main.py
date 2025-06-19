@@ -5,7 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import jwt
 import os
 
-from app.routers import cnpj_router
+from app.routers import cnpj_router, cruzamentos
 from app.auth import security_api
 
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -20,6 +20,7 @@ app = FastAPI(
 
 app.include_router(security_api.router, prefix="/auth", tags=["Autenticação"])
 app.include_router(cnpj_router.router, prefix="/api/cnpj", tags=["CNPJ"])
+app.include_router(cruzamentos.router, prefix="/api/cnpj", tags=["Cruzamentos"])
 
 
 # ---- Middleware para proteger a doc ----
