@@ -1,5 +1,5 @@
 import aiosqlite
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from app.auth.dependencies import get_current_user
 
 
