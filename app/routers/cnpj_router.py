@@ -229,7 +229,7 @@ async def listar_por_uf(
     user: dict = Depends(get_current_user)
 ):
     uf = uf.upper().strip()
-    page_size = 100
+    page_size = 50
     offset = (page - 1) * page_size
 
     async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -265,7 +265,7 @@ async def listar_por_municipio(
     page: int = Query(1, ge=1),
     user: dict = Depends(get_current_user)
 ):
-    page_size = 100
+    page_size = 50
     offset = (page - 1) * page_size
 
     async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -318,7 +318,7 @@ async def listar_por_cnae_principal(
     user: dict = Depends(get_current_user)
 ):
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 100
+    page_size = 50
     offset = (page - 1) * page_size
 
     async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -340,6 +340,56 @@ async def listar_por_cnae_principal(
                 lista.append(item)
         return {
             "cnae_principal": cnae_num,
+            "page": page,
+            "page_size": page_size,
+            "total_retornados": len(lista),
+            "resultado": lista
+        }
+
+@router.get("/cnae_secundaria/{cnae}")
+async def listar_por_cnae_secundaria(
+    cnae: str,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(get_current_user)
+):
+    cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
+    page_size = 50
+    offset = (page - 1) * page_size
+
+    # Monta padrão LIKE: pega exatos os 7 números, separados por vírgula ou isolados no campo
+    # Ex: ,6201500, ou 6201500, ou ,6201500 ou 6201500 (início/fim/entre)
+    like_pattern1 = f"{cnae_num},%"
+    like_pattern2 = f"%,{cnae_num},%"
+    like_pattern3 = f"%,{cnae_num}"
+    like_pattern4 = f"{cnae_num}"  # Campo exatamente igual
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            f"""
+            SELECT cnpj FROM estabelecimento
+            WHERE 
+                cnae_fiscal_secundaria LIKE ? OR
+                cnae_fiscal_secundaria LIKE ? OR
+                cnae_fiscal_secundaria LIKE ? OR
+                cnae_fiscal_secundaria = ?
+            LIMIT ? OFFSET ?
+            """,
+            (like_pattern1, like_pattern2, like_pattern3, like_pattern4, page_size, offset)
+        )
+        results = await cursor.fetchall()
+        await cursor.close()
+
+        await check_and_update_rate_limit(user, qtd_reqs=len(results))
+
+        lista = []
+        for r in results:
+            cnpj = r["cnpj"]
+            item = await montar_cnpj_completo(db, cnpj)
+            if item:
+                lista.append(item)
+        return {
+            "cnae_secundaria": cnae_num,
             "page": page,
             "page_size": page_size,
             "total_retornados": len(lista),

@@ -59,7 +59,7 @@ async def check_and_update_rate_limit(user: dict, qtd_reqs: int = 1):
             if last_request_date != today:
                 request_count = 0
             if request_count + qtd_reqs > 10:
-                raise HTTPException(429, "Limite diário de requisições atingido para contas não ativas.")
+                raise HTTPException(429, "Limite diário de requisições atingido para contas não pagas.")
             request_count += qtd_reqs
             await db.execute("UPDATE users SET request_count = ?, last_request_date = ? WHERE email = ?", (request_count, today, email))
             await db.commit()
