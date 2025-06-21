@@ -1,8 +1,17 @@
 import asyncio
 import aiosqlite
 import os
+from dotenv import load_dotenv
 
-DATABASE_AUTH = "database/security.db"
+load_dotenv()
+
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME_SECURITY = os.getenv("DB_NAME_SECURITY")
+
+DATABASE_AUTH = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_SECURITY}"
 
 async def ver_quantidade_requests(email_usuario: str):
     async with aiosqlite.connect(DATABASE_AUTH) as db:

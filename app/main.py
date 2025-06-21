@@ -4,6 +4,10 @@ from fastapi.security import OAuth2PasswordBearer
 from starlette.middleware.base import BaseHTTPMiddleware
 import jwt
 import os
+from dotenv import load_dotenv
+
+# Carrega as variáveis do .env
+load_dotenv()
 
 from app.routers import cnpj_router, cruzamentos
 from app.auth import security_api
@@ -22,15 +26,13 @@ app.include_router(security_api.router, prefix="/auth", tags=["Autenticação"])
 app.include_router(cnpj_router.router, prefix="/api/cnpj", tags=["CNPJ"])
 app.include_router(cruzamentos.router, prefix="/api/cnpj", tags=["Cruzamentos"])
 
-
 # ---- Middleware para proteger a doc ----
 class DocsAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Protege só o /docs e /redoc
+        # Protege só o /docs, /redoc e openapi.json
         if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
             auth = request.headers.get("Authorization")
             if not auth or not auth.startswith("Bearer "):
-                # Pode redirecionar para login ou só negar
                 raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Não autorizado")
             token = auth.replace("Bearer ", "")
             try:
@@ -41,3 +43,6 @@ class DocsAuthMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(DocsAuthMiddleware)
 # ---- fim do middleware ----
+
+# Comando para rodar:
+# uvicorn app.main:app --reload --host 0.0.0.0 --port 8430

@@ -1,16 +1,32 @@
 import os
 import jwt
-import aiosqlite
 from fastapi import HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 import datetime
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# --- Variáveis de ambiente e SQLAlchemy ---
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-DATABASE_AUTH = "database/security.db"
+
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME_SECURITY = os.getenv("DB_NAME_SECURITY")
+
+DATABASE_AUTH = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_SECURITY}"
+
+engine_auth = create_async_engine(DATABASE_AUTH, future=True)
+SessionAUTH = sessionmaker(engine_auth, class_=AsyncSession, expire_on_commit=False)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-# dependencies.py
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
@@ -19,19 +35,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Token inválido")
 
-    async with aiosqlite.connect(DATABASE_AUTH) as db:
-        db.row_factory = aiosqlite.Row
-        # PEGUE EMAIL E IS_ACTIVE
-        result = await db.execute("SELECT email, is_active FROM users WHERE email = ?", (email,))
-        user = await result.fetchone()
-        await result.close()
-
+    async with SessionAUTH() as session:
+        result = await session.execute(
+            text("SELECT email, is_active FROM users WHERE email = :email"),
+            {"email": email}
+        )
+        user = result.fetchone()
         if not user:
             raise HTTPException(status_code=401, detail="Usuário não encontrado")
-        # Não precisa validar "if not user['is_active']" aqui, porque status 0 pode ser permitido para request limitado
-        # Só retorna o usuário
-
-    return dict(user)
+        # user is a Row, convert to dict
+        return dict(user._mapping)
 
 
 async def check_and_update_rate_limit(user: dict, qtd_reqs: int = 1):
@@ -42,13 +55,20 @@ async def check_and_update_rate_limit(user: dict, qtd_reqs: int = 1):
     today = now.date().isoformat()
     month = now.strftime("%Y-%m")
 
-    async with aiosqlite.connect(DATABASE_AUTH) as db:
-        db.row_factory = aiosqlite.Row
-        res = await db.execute("SELECT request_count, last_request_date, monthly_request_count, last_request_month FROM users WHERE email = ?", (email,))
-        row = await res.fetchone()
-        await res.close()
+    async with SessionAUTH() as session:
+        result = await session.execute(
+            text("""
+                SELECT request_count, last_request_date, monthly_request_count, last_request_month
+                FROM users WHERE email = :email
+            """),
+            {"email": email}
+        )
+        row = result.fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="Usuário não encontrado")
 
         # default values if null
+        row = row._mapping  # to dict-like for attribute access
         request_count = row["request_count"] or 0
         last_request_date = row["last_request_date"]
         monthly_request_count = row["monthly_request_count"] or 0
@@ -61,20 +81,29 @@ async def check_and_update_rate_limit(user: dict, qtd_reqs: int = 1):
             if request_count + qtd_reqs > 10:
                 raise HTTPException(429, "Limite diário de requisições atingido para contas não pagas.")
             request_count += qtd_reqs
-            await db.execute("UPDATE users SET request_count = ?, last_request_date = ? WHERE email = ?", (request_count, today, email))
-            await db.commit()
+            await session.execute(
+                text("UPDATE users SET request_count = :rc, last_request_date = :ld WHERE email = :email"),
+                {"rc": request_count, "ld": today, "email": email}
+            )
+            await session.commit()
         elif is_active == 1:
             if last_request_month != month:
                 monthly_request_count = 0
             if monthly_request_count + qtd_reqs > 3000:
                 raise HTTPException(429, "Limite mensal de requisições atingido. Contate o suporte.")
             monthly_request_count += qtd_reqs
-            await db.execute("UPDATE users SET monthly_request_count = ?, last_request_month = ? WHERE email = ?", (monthly_request_count, month, email))
-            await db.commit()
+            await session.execute(
+                text("UPDATE users SET monthly_request_count = :mc, last_request_month = :lm WHERE email = :email"),
+                {"mc": monthly_request_count, "lm": month, "email": email}
+            )
+            await session.commit()
         elif is_active == 2:
             # unlimited, só estatística
             monthly_request_count += qtd_reqs
-            await db.execute("UPDATE users SET monthly_request_count = ?, last_request_month = ? WHERE email = ?", (monthly_request_count, month, email))
-            await db.commit()
+            await session.execute(
+                text("UPDATE users SET monthly_request_count = :mc, last_request_month = :lm WHERE email = :email"),
+                {"mc": monthly_request_count, "lm": month, "email": email}
+            )
+            await session.commit()
         else:
             raise HTTPException(403, "Status de usuário inválido.")

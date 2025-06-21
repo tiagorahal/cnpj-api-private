@@ -1,4 +1,3 @@
-import aiosqlite
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 import bcrypt
@@ -7,13 +6,26 @@ import secrets
 import datetime
 import os
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 
 load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 180
-DATABASE_AUTH = "database/security.db"
+
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME_SECURITY = os.getenv("DB_NAME_SECURITY")
+
+DATABASE_AUTH = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_SECURITY}"
+
+engine_auth = create_async_engine(DATABASE_AUTH, future=True)
+SessionAUTH = sessionmaker(engine_auth, class_=AsyncSession, expire_on_commit=False)
 
 router = APIRouter()
 
@@ -26,12 +38,13 @@ class UserLogin(BaseModel):
     password: str
 
 async def get_user_by_email(email: str):
-    async with aiosqlite.connect(DATABASE_AUTH) as db:
-        db.row_factory = aiosqlite.Row
-        result = await db.execute("SELECT * FROM users WHERE email = ?", (email,))
-        row = await result.fetchone()
-        await result.close()
-        return dict(row) if row else None
+    async with SessionAUTH() as session:
+        result = await session.execute(
+            text("SELECT * FROM users WHERE email = :email"),
+            {"email": email}
+        )
+        row = result.fetchone()
+        return dict(row._mapping) if row else None
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode()
@@ -57,12 +70,15 @@ async def register(user: UserCreate):
     hashed_pw = hash_password(user.password)
     confirmation_token = secrets.token_urlsafe(32)
 
-    async with aiosqlite.connect(DATABASE_AUTH) as db:
-        await db.execute("""
-            INSERT INTO users (email, password_hash, confirmation_token, is_active)
-            VALUES (?, ?, ?, 0)
-        """, (user.email, hashed_pw, confirmation_token))
-        await db.commit()
+    async with SessionAUTH() as session:
+        await session.execute(
+            text("""
+                INSERT INTO users (email, password_hash, confirmation_token, is_active)
+                VALUES (:email, :password_hash, :confirmation_token, 0)
+            """),
+            {"email": user.email, "password_hash": hashed_pw, "confirmation_token": confirmation_token}
+        )
+        await session.commit()
 
     print(f"Simulando envio de email para {user.email}")
     print(f"Link de confirmação: http://localhost:8000/auth/confirm/{confirmation_token}")
@@ -71,12 +87,15 @@ async def register(user: UserCreate):
 
 @router.get("/confirm/{token}")
 async def confirm_email(token: str):
-    async with aiosqlite.connect(DATABASE_AUTH) as db:
-        await db.execute("""
-            UPDATE users SET email_confirmed = 1, confirmation_token = NULL
-            WHERE confirmation_token = ?
-        """, (token,))
-        await db.commit()
+    async with SessionAUTH() as session:
+        await session.execute(
+            text("""
+                UPDATE users SET email_confirmed = 1, confirmation_token = NULL
+                WHERE confirmation_token = :token
+            """),
+            {"token": token}
+        )
+        await session.commit()
 
     return {"message": "Email confirmado com sucesso (aguardando ativação manual)."}
 
