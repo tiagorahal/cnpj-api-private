@@ -1,45 +1,70 @@
-# API e servidor
+# ---------------------- #
+# API & Servidor Web
+# ---------------------- #
 fastapi
 uvicorn[standard]
 gunicorn
 
-# PostgreSQL (sync + async)
-psycopg2-binary
-asyncpg
-sqlalchemy
-databases[postgresql]
+# ---------------------- #
+# Banco de Dados
+# ---------------------- #
+psycopg2-binary         # PostgreSQL driver (sync)
+asyncpg                 # PostgreSQL driver (async)
+sqlalchemy              # ORM (sync/async)
+databases[postgresql]   # Abstração async DB para FastAPI
+aiosqlite               # SQLite async
 
+# ---------------------- #
 # Cache Redis
+# ---------------------- #
 redis
 aioredis
 
-# Parsing, ingestão e manipulação de dados
+# ---------------------- #
+# Parsing, Ingestão & Manipulação de Dados
+# ---------------------- #
 pandas
+dask
+dask-expr
 pyarrow
 openpyxl
 
-# Utilidades e CLI
+# ---------------------- #
+# Utilidades & CLI
+# ---------------------- #
 tqdm
 python-dotenv
 loguru
 rich
 tabulate
+psutil
 
-# Web, scraping e requisições (se necessário)
+# ---------------------- #
+# Web, Scraping & Requisições
+# ---------------------- #
 httpx
 aiohttp
+requests
+wget
+parfive
 beautifulsoup4
+bs4
 lxml
 
-# Serialização/validação extra
+# ---------------------- #
+# Serialização & Validação
+# ---------------------- #
 pydantic
 pydantic-settings
 PyYAML
 
-# Segurança e rate limiting (opcional)
+# ---------------------- #
+# Segurança & Rate Limiting
+# ---------------------- #
 slowapi
-
-python-dotenv
 bcrypt
 pyjwt
-aiosqlite
+
+# ---------------------- #
+# Fim
+# ---------------------- #
