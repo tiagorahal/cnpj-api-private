@@ -2,3 +2,7 @@
 database/cnpj.db
 database/security.db
 database/cnpj_links_ete.db
+database/scripts/dados-publicos/*
+database/scripts/dados-publicos-zip/*
+
+.env
