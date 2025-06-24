@@ -2,18 +2,34 @@ import aiosqlite
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.security import OAuth2PasswordBearer
 import os
+from sqlalchemy import text
 from ..auth.dependencies import get_current_user, check_and_update_rate_limit
 import aiosqlite
 from fastapi import APIRouter, Depends, Query
 import re
 import jwt
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 
 load_dotenv()
 
 router = APIRouter()
-DATABASE_PATH = "database/cnpj.db"
-DATABASE_AUTH = "database/security.db"
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME_CNPJ = os.getenv("DB_NAME_CNPJ")
+DB_NAME_SECURITY = os.getenv("DB_NAME_SECURITY")
+
+DATABASE_PATH = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_CNPJ}"
+DATABASE_AUTH = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_SECURITY}"
+
+engine_cnpj = create_async_engine(DATABASE_PATH, future=True)
+engine_auth = create_async_engine(DATABASE_AUTH, future=True)
+SessionCNPJ = sessionmaker(engine_cnpj, class_=AsyncSession, expire_on_commit=False)
+SessionAUTH = sessionmaker(engine_auth, class_=AsyncSession, expire_on_commit=False)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -103,48 +119,67 @@ async def lookup_descricao(db, tabela, codigo):
     else:
         return codigo
 
-async def montar_cnpj_completo(db, cnpj):
+async def montar_cnpj_completo(session, cnpj):
     # Busca dados do estabelecimento
-    est = await db.execute("SELECT * FROM estabelecimento WHERE cnpj = ?", (cnpj,))
-    est_row = await est.fetchone()
-    await est.close()
+    result = await session.execute(
+        text("SELECT * FROM estabelecimento WHERE cnpj = :cnpj"),
+        {"cnpj": cnpj}
+    )
+    est_row = result.first()
     if not est_row:
         return None
 
-    est_dict = dict(est_row)
-    limpar_cnpj_dict(est_dict)
+    est_dict = dict(est_row._mapping)
     cnpj_basico = est_dict["cnpj_basico"]
 
     # Busca dados da empresa
-    emp = await db.execute("SELECT * FROM empresas WHERE cnpj_basico = ?", (cnpj_basico,))
-    emp_row = await emp.fetchone()
-    await emp.close()
-    emp_dict = dict(emp_row) if emp_row else {}
-    limpar_cnpj_dict(emp_dict)
+    result = await session.execute(
+        text("SELECT * FROM empresas WHERE cnpj_basico = :cnpj_basico"),
+        {"cnpj_basico": cnpj_basico}
+    )
+    emp_row = result.first()
+    emp_dict = dict(emp_row._mapping) if emp_row else {}
 
     # Busca dados do simples
-    simp = await db.execute("SELECT * FROM simples WHERE cnpj_basico = ?", (cnpj_basico,))
-    simp_row = await simp.fetchone()
-    await simp.close()
-    simp_dict = dict(simp_row) if simp_row else {}
-    limpar_cnpj_dict(simp_dict)
+    result = await session.execute(
+        text("SELECT * FROM simples WHERE cnpj_basico = :cnpj_basico"),
+        {"cnpj_basico": cnpj_basico}
+    )
+    simp_row = result.first()
+    simp_dict = dict(simp_row._mapping) if simp_row else {}
 
+    # --- Aqui entram os mapeamentos de descrição, se quiser pode adaptar para usar session ---
     porte_empresa_formatado = PORTE_EMPRESA_MAP.get(emp_dict.get("porte_empresa"), emp_dict.get("porte_empresa"))
     matriz_filial_formatado = MATRIZ_FILIAL_MAP.get(est_dict.get("matriz_filial"), est_dict.get("matriz_filial"))
     situacao_cadastral_formatado = SITUACAO_CADASTRAL_MAP.get(est_dict.get("situacao_cadastral"), est_dict.get("situacao_cadastral"))
     opcao_simples_formatado = "SIM" if simp_dict.get("opcao_simples") == "S" else "NÃO"
     opcao_mei_formatado = "SIM" if simp_dict.get("opcao_mei") == "S" else "NÃO"
 
-    municipio_formatado = await lookup_descricao(db, "municipio", est_dict.get("municipio"))
-    natureza_juridica_formatado = await lookup_descricao(db, "natureza_juridica", emp_dict.get("natureza_juridica"))
-    motivo_situacao_cadastral_formatado = await lookup_descricao(db, "motivo", est_dict.get("motivo_situacao_cadastral"))
-    cnae_fiscal_formatado = await lookup_descricao(db, "cnae", est_dict.get("cnae_fiscal"))
+    # Para usar lookup_descricao, você vai precisar adaptar para receber a session e usar execute igual abaixo:
+    async def lookup_descricao(session, tabela, codigo):
+        if not codigo:
+            return None
+        result = await session.execute(
+            text(f"SELECT descricao FROM {tabela} WHERE codigo = :codigo"),
+            {"codigo": codigo}
+        )
+        row = result.first()
+        if row:
+            return f"{codigo} - {row.descricao}"
+        else:
+            return codigo
+
     complemento_limpo = limpar_espacos(est_dict.get("complemento"))
+
+    municipio_formatado = await lookup_descricao(session, "municipio", est_dict.get("municipio"))
+    natureza_juridica_formatado = await lookup_descricao(session, "natureza_juridica", emp_dict.get("natureza_juridica"))
+    motivo_situacao_cadastral_formatado = await lookup_descricao(session, "motivo", est_dict.get("motivo_situacao_cadastral"))
+    cnae_fiscal_formatado = await lookup_descricao(session, "cnae", est_dict.get("cnae_fiscal"))
 
     cnae_fiscal_secundaria_formatado = []
     if est_dict.get("cnae_fiscal_secundaria"):
         for cnae_sec in est_dict["cnae_fiscal_secundaria"].split(","):
-            descricao = await lookup_descricao(db, "cnae", cnae_sec.strip())
+            descricao = await lookup_descricao(session, "cnae", cnae_sec.strip())
             cnae_fiscal_secundaria_formatado.append(descricao)
 
     empresa = {
@@ -184,7 +219,7 @@ async def montar_cnpj_completo(db, cnpj):
         "situacao_especial": est_dict.get("situacao_especial"),
         "data_situacao_especial": est_dict.get("data_situacao_especial"),
         "natureza_juridica": natureza_juridica_formatado,
-        "qualificacao_responsavel": await lookup_descricao(db, "qualificacao_socio", emp_dict.get("qualificacao_responsavel")),
+        "qualificacao_responsavel": await lookup_descricao(session, "qualificacao_socio", emp_dict.get("qualificacao_responsavel")),
         "opcao_simples": opcao_simples_formatado,
         "data_opcao_simples": simp_dict.get("data_opcao_simples"),
         "data_exclusao_simples": simp_dict.get("data_exclusao_simples"),
@@ -193,22 +228,24 @@ async def montar_cnpj_completo(db, cnpj):
         "data_exclusao_mei": simp_dict.get("data_exclusao_mei")
     }
 
-    socios = await db.execute("SELECT * FROM socios WHERE cnpj = ?", (cnpj,))
-    socios_rows = await socios.fetchall()
-    await socios.close()
+    # Busca sócios
+    result = await session.execute(
+        text("SELECT * FROM socios WHERE cnpj = :cnpj"),
+        {"cnpj": cnpj}
+    )
+    socios_rows = result.fetchall()
 
     socios_list = []
     for row in socios_rows:
-        socio_dict = dict(row)
-        limpar_cnpj_dict(socio_dict)
+        socio_dict = dict(row._mapping)
         socios_list.append({
             "cnpj": socio_dict.get("cnpj"),
             "identificador_de_socio": IDENTIFICADOR_SOCIO_MAP.get(socio_dict.get("identificador_de_socio"), socio_dict.get("identificador_de_socio")),
             "nome_socio": socio_dict.get("nome_socio"),
             "cnpj_cpf_socio": mascarar_cpf(socio_dict.get("cnpj_cpf_socio")),
-            "qualificacao_socio": await lookup_descricao(db, "qualificacao_socio", socio_dict.get("qualificacao_socio")),
+            "qualificacao_socio": await lookup_descricao(session, "qualificacao_socio", socio_dict.get("qualificacao_socio")),
             "data_entrada_sociedade": socio_dict.get("data_entrada_sociedade"),
-            "pais": await lookup_descricao(db, "pais", socio_dict.get("pais")),
+            "pais": await lookup_descricao(session, "pais", socio_dict.get("pais")),
             "representante_legal": mascarar_cpf(socio_dict.get("representante_legal")),
             "nome_representante": socio_dict.get("nome_representante"),
             "qualificacao_representante_legal": QUALIFICACAO_REPRESENTANTE_MAP.get(socio_dict.get("qualificacao_representante_legal")),
@@ -220,14 +257,13 @@ async def montar_cnpj_completo(db, cnpj):
 @router.get("/{cnpj}")
 async def consultar_cnpj(cnpj: str, user: dict = Depends(get_current_user)):
     cnpj = sanitize_cnpj(cnpj)
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
+    async with SessionCNPJ() as session:
         await check_and_update_rate_limit(user, qtd_reqs=1)
-        item = await montar_cnpj_completo(db, cnpj)
+        item = await montar_cnpj_completo(session, cnpj)
         if not item:
             raise HTTPException(status_code=404, detail="CNPJ não encontrado")
         return item
-
+    
 @router.get("/uf/{uf}")
 async def listar_por_uf(
     uf: str,
@@ -238,21 +274,19 @@ async def listar_por_uf(
     page_size = 10
     offset = (page - 1) * page_size
 
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
+    async with SessionCNPJ() as session:
         # Busca todos os CNPJs para a UF
-        cursor = await db.execute(
-            "SELECT cnpj FROM estabelecimento WHERE uf = ? LIMIT ? OFFSET ?",
-            (uf, page_size, offset)
+        result = await session.execute(
+            text("SELECT cnpj FROM estabelecimento WHERE uf = :uf LIMIT :limit OFFSET :offset"),
+            {"uf": uf, "limit": page_size, "offset": offset}
         )
-        results = await cursor.fetchall()
-        await cursor.close()
-        await check_and_update_rate_limit(user, qtd_reqs=len(results))  # [ADICIONADA]
+        rows = result.fetchall()
+        await check_and_update_rate_limit(user, qtd_reqs=len(rows))
 
         lista = []
-        for r in results:
-            cnpj = r["cnpj"]
-            item = await montar_cnpj_completo(db, cnpj)
+        for r in rows:
+            cnpj = r.cnpj
+            item = await montar_cnpj_completo(session, cnpj)
             if item:
                 lista.append(item)
         return {
@@ -263,8 +297,6 @@ async def listar_por_uf(
             "resultado": lista
         }
 
-from fastapi import Query
-
 @router.get("/municipio/{nome_municipio}")
 async def listar_por_municipio(
     nome_municipio: str,
@@ -274,37 +306,34 @@ async def listar_por_municipio(
     page_size = 10
     offset = (page - 1) * page_size
 
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
+    async with SessionCNPJ() as session:
         # Descobre o(s) código(s) do município pelo nome (case-insensitive)
-        cursor = await db.execute(
-            "SELECT codigo FROM municipio WHERE descricao LIKE ?",
-            (f"%{nome_municipio.upper()}%",)
+        result = await session.execute(
+            text("SELECT codigo FROM municipio WHERE UPPER(descricao) LIKE :desc"),
+            {"desc": f"%{nome_municipio.upper()}%"}
         )
-        municipios = await cursor.fetchall()
-        await cursor.close()
+        municipios = result.fetchall()
 
         if not municipios:
             return {"municipio": nome_municipio, "resultado": []}
 
-        codigos = [str(row["codigo"]) for row in municipios]
+        codigos = [str(row.codigo) for row in municipios]
 
         # Busca os CNPJs para esses códigos de município
         cnpjs = []
         for codigo in codigos:
-            cur_cnpj = await db.execute(
-                "SELECT cnpj FROM estabelecimento WHERE municipio = ? LIMIT ? OFFSET ?",
-                (codigo, page_size, offset)
+            result = await session.execute(
+                text("SELECT cnpj FROM estabelecimento WHERE municipio = :codigo LIMIT :limit OFFSET :offset"),
+                {"codigo": codigo, "limit": page_size, "offset": offset}
             )
-            results = await cur_cnpj.fetchall()
-            await cur_cnpj.close()
-            cnpjs.extend([row["cnpj"] for row in results])
+            rows = result.fetchall()
+            cnpjs.extend([row.cnpj for row in rows])
 
-        await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))  # [ADICIONADA]
+        await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
 
         lista = []
         for cnpj in cnpjs:
-            item = await montar_cnpj_completo(db, cnpj)
+            item = await montar_cnpj_completo(session, cnpj)
             if item:
                 lista.append(item)
 
@@ -327,21 +356,18 @@ async def listar_por_cnae_principal(
     page_size = 10
     offset = (page - 1) * page_size
 
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT cnpj FROM estabelecimento WHERE cnae_fiscal = ? LIMIT ? OFFSET ?",
-            (cnae_num, page_size, offset)
+    async with SessionCNPJ() as session:
+        result = await session.execute(
+            text("SELECT cnpj FROM estabelecimento WHERE cnae_fiscal = :cnae LIMIT :limit OFFSET :offset"),
+            {"cnae": cnae_num, "limit": page_size, "offset": offset}
         )
-        results = await cursor.fetchall()
-        await cursor.close()
-
-        await check_and_update_rate_limit(user, qtd_reqs=len(results))  # [ADICIONADA]
+        rows = result.fetchall()
+        await check_and_update_rate_limit(user, qtd_reqs=len(rows))
 
         lista = []
-        for r in results:
-            cnpj = r["cnpj"]
-            item = await montar_cnpj_completo(db, cnpj)
+        for r in rows:
+            cnpj = r.cnpj
+            item = await montar_cnpj_completo(session, cnpj)
             if item:
                 lista.append(item)
         return {
@@ -362,36 +388,38 @@ async def listar_por_cnae_secundaria(
     page_size = 10
     offset = (page - 1) * page_size
 
-    # Monta padrão LIKE: pega exatos os 7 números, separados por vírgula ou isolados no campo
-    # Ex: ,6201500, ou 6201500, ou ,6201500 ou 6201500 (início/fim/entre)
     like_pattern1 = f"{cnae_num},%"
     like_pattern2 = f"%,{cnae_num},%"
     like_pattern3 = f"%,{cnae_num}"
-    like_pattern4 = f"{cnae_num}"  # Campo exatamente igual
+    like_pattern4 = f"{cnae_num}"
 
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            f"""
-            SELECT cnpj FROM estabelecimento
-            WHERE 
-                cnae_fiscal_secundaria LIKE ? OR
-                cnae_fiscal_secundaria LIKE ? OR
-                cnae_fiscal_secundaria LIKE ? OR
-                cnae_fiscal_secundaria = ?
-            LIMIT ? OFFSET ?
-            """,
-            (like_pattern1, like_pattern2, like_pattern3, like_pattern4, page_size, offset)
+    async with SessionCNPJ() as session:
+        result = await session.execute(
+            text("""
+                SELECT cnpj FROM estabelecimento
+                WHERE 
+                    cnae_fiscal_secundaria LIKE :pat1 OR
+                    cnae_fiscal_secundaria LIKE :pat2 OR
+                    cnae_fiscal_secundaria LIKE :pat3 OR
+                    cnae_fiscal_secundaria = :pat4
+                LIMIT :limit OFFSET :offset
+            """),
+            {
+                "pat1": like_pattern1,
+                "pat2": like_pattern2,
+                "pat3": like_pattern3,
+                "pat4": like_pattern4,
+                "limit": page_size,
+                "offset": offset
+            }
         )
-        results = await cursor.fetchall()
-        await cursor.close()
-
-        await check_and_update_rate_limit(user, qtd_reqs=len(results))
+        rows = result.fetchall()
+        await check_and_update_rate_limit(user, qtd_reqs=len(rows))
 
         lista = []
-        for r in results:
-            cnpj = r["cnpj"]
-            item = await montar_cnpj_completo(db, cnpj)
+        for r in rows:
+            cnpj = r.cnpj
+            item = await montar_cnpj_completo(session, cnpj)
             if item:
                 lista.append(item)
         return {
@@ -414,20 +442,27 @@ async def listar_uf_cnae_principal(
     page_size = 10
     offset = (page - 1) * page_size
 
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT cnpj FROM estabelecimento WHERE uf = ? AND cnae_fiscal = ? LIMIT ? OFFSET ?",
-            (uf.upper().strip(), cnae_num, page_size, offset)
+    async with SessionCNPJ() as session:
+        result = await session.execute(
+            text("""
+                SELECT cnpj FROM estabelecimento
+                WHERE uf = :uf AND cnae_fiscal = :cnae
+                LIMIT :limit OFFSET :offset
+            """),
+            {
+                "uf": uf.upper().strip(),
+                "cnae": cnae_num,
+                "limit": page_size,
+                "offset": offset
+            }
         )
-        results = await cursor.fetchall()
-        await cursor.close()
-        await check_and_update_rate_limit(user, qtd_reqs=len(results))
+        rows = result.fetchall()
+        await check_and_update_rate_limit(user, qtd_reqs=len(rows))
 
         lista = []
-        for r in results:
-            cnpj = r["cnpj"]
-            item = await montar_cnpj_completo(db, cnpj)
+        for r in rows:
+            cnpj = r.cnpj
+            item = await montar_cnpj_completo(session, cnpj)
             if item:
                 lista.append(item)
         return {
@@ -450,28 +485,30 @@ async def listar_uf_cnae_secundaria(
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
     page_size = 10
     offset = (page - 1) * page_size
+    like_pattern = f"%,{cnae_num},%"
 
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        like_pattern = f"%,{cnae_num},%"
-        cursor = await db.execute(
-            """
-            SELECT cnpj FROM estabelecimento
-            WHERE uf = ?
-            AND (',' || REPLACE(cnae_fiscal_secundaria, ' ', '') || ',') LIKE ?
-            LIMIT ? OFFSET ?
-            """,
-            (uf.upper().strip(), like_pattern, page_size, offset)
+    async with SessionCNPJ() as session:
+        result = await session.execute(
+            text("""
+                SELECT cnpj FROM estabelecimento
+                WHERE uf = :uf
+                  AND (',' || REPLACE(cnae_fiscal_secundaria, ' ', '') || ',') LIKE :like
+                LIMIT :limit OFFSET :offset
+            """),
+            {
+                "uf": uf.upper().strip(),
+                "like": like_pattern,
+                "limit": page_size,
+                "offset": offset
+            }
         )
-        results = await cursor.fetchall()
-        await cursor.close()
-        cnpjs = [row["cnpj"] for row in results]
-
+        rows = result.fetchall()
+        cnpjs = [row.cnpj for row in rows]
         await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
 
         lista = []
         for cnpj in cnpjs:
-            item = await montar_cnpj_completo(db, cnpj)
+            item = await montar_cnpj_completo(session, cnpj)
             if item:
                 lista.append(item)
         return {
@@ -495,34 +532,36 @@ async def listar_municipio_cnae_principal(
     page_size = 10
     offset = (page - 1) * page_size
 
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT codigo FROM municipio WHERE descricao LIKE ?",
-            (f"%{nome_municipio.upper()}%",)
+    async with SessionCNPJ() as session:
+        # Buscar códigos do município
+        result = await session.execute(
+            text("SELECT codigo FROM municipio WHERE UPPER(descricao) LIKE :desc"),
+            {"desc": f"%{nome_municipio.upper()}%"}
         )
-        municipios = await cursor.fetchall()
-        await cursor.close()
+        municipios = result.fetchall()
         if not municipios:
             return {"municipio": nome_municipio, "resultado": []}
 
-        codigos = [str(row["codigo"]) for row in municipios]
+        codigos = [str(row.codigo) for row in municipios]
 
         cnpjs = []
         for codigo in codigos:
-            cur_cnpj = await db.execute(
-                "SELECT cnpj FROM estabelecimento WHERE municipio = ? AND cnae_fiscal = ? LIMIT ? OFFSET ?",
-                (codigo, cnae_num, page_size, offset)
+            res = await session.execute(
+                text("""
+                    SELECT cnpj FROM estabelecimento
+                    WHERE municipio = :codigo AND cnae_fiscal = :cnae
+                    LIMIT :limit OFFSET :offset
+                """),
+                {"codigo": codigo, "cnae": cnae_num, "limit": page_size, "offset": offset}
             )
-            results = await cur_cnpj.fetchall()
-            await cur_cnpj.close()
-            cnpjs.extend([row["cnpj"] for row in results])
+            rows = res.fetchall()
+            cnpjs.extend([row.cnpj for row in rows])
 
         await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
 
         lista = []
         for cnpj in cnpjs:
-            item = await montar_cnpj_completo(db, cnpj)
+            item = await montar_cnpj_completo(session, cnpj)
             if item:
                 lista.append(item)
         return {
@@ -535,6 +574,7 @@ async def listar_municipio_cnae_principal(
             "resultado": lista
         }
 
+
 # 4. MUNICÍPIO + CNAE SECUNDÁRIA
 @router.get("/municipio/{nome_municipio}/cnae_secundaria/{cnae}")
 async def listar_municipio_cnae_secundaria(
@@ -546,40 +586,38 @@ async def listar_municipio_cnae_secundaria(
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
     page_size = 10
     offset = (page - 1) * page_size
+    like_pattern = f"%,{cnae_num},%"
 
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute(
-            "SELECT codigo FROM municipio WHERE descricao LIKE ?",
-            (f"%{nome_municipio.upper()}%",)
+    async with SessionCNPJ() as session:
+        # Buscar códigos do município
+        result = await session.execute(
+            text("SELECT codigo FROM municipio WHERE UPPER(descricao) LIKE :desc"),
+            {"desc": f"%{nome_municipio.upper()}%"}
         )
-        municipios = await cursor.fetchall()
-        await cursor.close()
+        municipios = result.fetchall()
         if not municipios:
             return {"municipio": nome_municipio, "resultado": []}
 
-        codigos = [str(row["codigo"]) for row in municipios]
+        codigos = [str(row.codigo) for row in municipios]
         cnpjs = []
-        like_pattern = f"%,{cnae_num},%"
         for codigo in codigos:
-            cur_cnpj = await db.execute(
-                """
-                SELECT cnpj FROM estabelecimento
-                WHERE municipio = ?
-                AND (',' || REPLACE(cnae_fiscal_secundaria, ' ', '') || ',') LIKE ?
-                LIMIT ? OFFSET ?
-                """,
-                (codigo, like_pattern, page_size, offset)
+            res = await session.execute(
+                text("""
+                    SELECT cnpj FROM estabelecimento
+                    WHERE municipio = :codigo
+                      AND (',' || REPLACE(cnae_fiscal_secundaria, ' ', '') || ',') LIKE :like
+                    LIMIT :limit OFFSET :offset
+                """),
+                {"codigo": codigo, "like": like_pattern, "limit": page_size, "offset": offset}
             )
-            results = await cur_cnpj.fetchall()
-            await cur_cnpj.close()
-            cnpjs.extend([row["cnpj"] for row in results])
+            rows = res.fetchall()
+            cnpjs.extend([row.cnpj for row in rows])
 
         await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
 
         lista = []
         for cnpj in cnpjs:
-            item = await montar_cnpj_completo(db, cnpj)
+            item = await montar_cnpj_completo(session, cnpj)
             if item:
                 lista.append(item)
         return {

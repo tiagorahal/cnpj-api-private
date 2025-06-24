@@ -2,3 +2,8 @@
 database/cnpj.db
 database/security.db
 database/cnpj_links_ete.db
+
+.venv
+dados-publicos
+dados-publicos-zip
+venv
