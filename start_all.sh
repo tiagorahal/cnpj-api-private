@@ -16,6 +16,6 @@ cd ~/code/cnpj-api-private/app
 streamlit run streamlit_app.py > streamlit.log 2>&1 &
 
 # 5. Sobe admin_streamlit.py (em background)
-python admin_streamlit.py > admin_streamlit.log 2>&1 &
+streamlit run admin_streamlit.py > admin_streamlit.log 2>&1 &
 
 echo "Tudo iniciado! (Procure logs em *.log)"

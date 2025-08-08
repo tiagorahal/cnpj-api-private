@@ -1,0 +1,52 @@
+INFO:     Uvicorn running on http://0.0.0.0:8430 (Press CTRL+C to quit)
+INFO:     Started parent process [20260]
+INFO:     Started server process [20265]
+INFO:     Started server process [20268]
+INFO:     Started server process [20267]
+INFO:     Waiting for application startup.
+INFO:     Waiting for application startup.
+INFO:     Waiting for application startup.
+INFO:app.main:============================================================
+INFO:app.main:============================================================
+INFO:app.main:============================================================
+INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
+INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
+INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
+INFO:app.main:📍 Banco de dados: cnpj_rede
+INFO:app.main:📍 Banco de dados: cnpj_rede
+INFO:app.main:📍 Banco de dados: cnpj_rede
+INFO:app.main:🌐 Host: 0.0.0.0
+INFO:app.main:🌐 Host: 0.0.0.0
+INFO:app.main:🔌 Porta: 8430
+INFO:app.main:🌐 Host: 0.0.0.0
+INFO:app.main:🔌 Porta: 8430
+INFO:app.main:============================================================
+INFO:app.main:🔌 Porta: 8430
+INFO:app.main:============================================================
+INFO:app.main:============================================================
+INFO:     Started server process [20266]
+INFO:     Waiting for application startup.
+INFO:app.main:============================================================
+INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
+INFO:app.main:📍 Banco de dados: cnpj_rede
+INFO:app.main:🌐 Host: 0.0.0.0
+INFO:app.main:🔌 Porta: 8430
+INFO:app.main:============================================================
+INFO:app.main:✅ Todos os schemas encontrados: ['cnpj', 'links', 'rede', 'security']
+INFO:app.main:✅ Todos os schemas encontrados: ['cnpj', 'links', 'rede', 'security']
+INFO:app.main:✅ Tabelas principais verificadas
+INFO:app.main:✅ Tabelas principais verificadas
+INFO:app.main:✅ Todos os schemas encontrados: ['cnpj', 'links', 'rede', 'security']
+INFO:app.main:✅ Todos os schemas encontrados: ['cnpj', 'links', 'rede', 'security']
+INFO:app.main:✅ Conexão com banco de dados estabelecida
+INFO:app.main:✅ Conexão com banco de dados estabelecida
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:app.main:✅ Tabelas principais verificadas
+INFO:app.main:✅ Tabelas principais verificadas
+INFO:app.main:✅ Conexão com banco de dados estabelecida
+INFO:app.main:✅ Conexão com banco de dados estabelecida
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:41600 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56314 - "GET /api/cnpj/municipio/goiania?page=1 HTTP/1.1" 200 OK

@@ -319,7 +319,7 @@ async def listar_por_municipio(
     offset = (page - 1) * page_size
 
     async with AsyncSessionLocal() as session:
-        # Busca código do município
+        # Busca códigos do município
         result = await session.execute(
             text("SELECT codigo FROM cnpj.municipio WHERE UPPER(descricao) LIKE :desc"),
             {"desc": f"%{nome_municipio.upper()}%"}
@@ -329,17 +329,20 @@ async def listar_por_municipio(
         if not municipios:
             return {"municipio": nome_municipio, "resultado": []}
 
+        # Se sua coluna municipio é INT, converta para int, se for VARCHAR, mantenha str
         codigos = [str(row.codigo) for row in municipios]
 
-        # Busca CNPJs
-        cnpjs = []
-        for codigo in codigos:
-            result = await session.execute(
-                text("SELECT cnpj FROM cnpj.estabelecimento WHERE municipio = :codigo LIMIT :limit OFFSET :offset"),
-                {"codigo": codigo, "limit": page_size, "offset": offset}
-            )
-            rows = result.fetchall()
-            cnpjs.extend([row.cnpj for row in rows])
+        # CORREÇÃO AQUI:
+        result = await session.execute(
+            text("""
+                SELECT cnpj FROM cnpj.estabelecimento
+                WHERE municipio = ANY(:codigos)
+                LIMIT :limit OFFSET :offset
+            """),
+            {"codigos": codigos, "limit": page_size, "offset": offset}
+        )
+        rows = result.fetchall()
+        cnpjs = [row.cnpj for row in rows]
 
         await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
 
@@ -496,37 +499,45 @@ async def listar_uf_cnae_principal(
         }
 
 # Combinação 2: UF + CNAE SECUNDÁRIA
-@router.get("/uf/{uf}/cnae_secundaria/{cnae}")
-async def listar_uf_cnae_secundaria(
-    uf: str,
+@router.get("/municipio/{nome_municipio}/cnae_secundaria/{cnae}")
+async def listar_municipio_cnae_secundaria(
+    nome_municipio: str,
     cnae: str,
     page: int = Query(1, ge=1),
     user: dict = Depends(require_active_user)
 ):
-    """Lista CNPJs por UF e CNAE secundária"""
+    """Lista CNPJs por município e CNAE secundária"""
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
     page_size = 50
     offset = (page - 1) * page_size
     like_pattern = f"%{cnae_num}%"
 
     async with AsyncSessionLocal() as session:
+        # Buscar códigos do município
+        result = await session.execute(
+            text("SELECT codigo FROM cnpj.municipio WHERE UPPER(descricao) LIKE :desc"),
+            {"desc": f"%{nome_municipio.upper()}%"}
+        )
+        municipios = result.fetchall()
+        
+        if not municipios:
+            return {"municipio": nome_municipio, "resultado": []}
+
+        codigos = [str(row.codigo) for row in municipios]
+
+        # CORREÇÃO AQUI:
         result = await session.execute(
             text("""
                 SELECT cnpj FROM cnpj.estabelecimento
-                WHERE uf = :uf
+                WHERE municipio = ANY(:codigos)
                   AND cnae_fiscal_secundaria LIKE :like
                 LIMIT :limit OFFSET :offset
             """),
-            {
-                "uf": uf.upper().strip(),
-                "like": like_pattern,
-                "limit": page_size,
-                "offset": offset
-            }
+            {"codigos": codigos, "like": like_pattern, "limit": page_size, "offset": offset}
         )
         rows = result.fetchall()
         cnpjs = [row.cnpj for row in rows]
-        
+
         await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
 
         lista = []
@@ -536,8 +547,9 @@ async def listar_uf_cnae_secundaria(
                 lista.append(item)
         
         return {
-            "uf": uf,
+            "municipio": nome_municipio,
             "cnae_secundaria": cnae_num,
+            "codigos_encontrados": codigos,
             "page": page,
             "page_size": page_size,
             "total_retornados": len(lista),
@@ -545,7 +557,7 @@ async def listar_uf_cnae_secundaria(
         }
 
 # Combinação 3: MUNICÍPIO + CNAE PRINCIPAL
-@router.get("/municipio/{nome_municipio}/cnae_principal/{cnae}")
+router.get("/municipio/{nome_municipio}/cnae_principal/{cnae}")
 async def listar_municipio_cnae_principal(
     nome_municipio: str,
     cnae: str,
@@ -570,18 +582,17 @@ async def listar_municipio_cnae_principal(
 
         codigos = [str(row.codigo) for row in municipios]
 
-        cnpjs = []
-        for codigo in codigos:
-            res = await session.execute(
-                text("""
-                    SELECT cnpj FROM cnpj.estabelecimento
-                    WHERE municipio = :codigo AND cnae_fiscal = :cnae
-                    LIMIT :limit OFFSET :offset
-                """),
-                {"codigo": codigo, "cnae": cnae_num, "limit": page_size, "offset": offset}
-            )
-            rows = res.fetchall()
-            cnpjs.extend([row.cnpj for row in rows])
+        # CORREÇÃO AQUI:
+        result = await session.execute(
+            text("""
+                SELECT cnpj FROM cnpj.estabelecimento
+                WHERE municipio = ANY(:codigos) AND cnae_fiscal = :cnae
+                LIMIT :limit OFFSET :offset
+            """),
+            {"codigos": codigos, "cnae": cnae_num, "limit": page_size, "offset": offset}
+        )
+        rows = result.fetchall()
+        cnpjs = [row.cnpj for row in rows]
 
         await check_and_update_rate_limit(user, qtd_reqs=len(cnpjs))
 

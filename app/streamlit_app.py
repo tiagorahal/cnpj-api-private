@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import re
+import json
 from io import BytesIO
 
 API_URL = "http://localhost:8430"
@@ -126,7 +127,14 @@ if run_btn:
 
 # ------------------ Exportar Planilha ------------------
 
-from io import BytesIO
+def formatar_data(data):
+    """Converte data yyyymmdd ou 00000000 em dd/mm/yyyy ou vazio."""
+    if not data or str(data).strip() in ["", "00000000", "0", "nan"]:
+        return ""
+    data = str(data)
+    if len(data) == 8 and data.isdigit():
+        return f"{data[6:8]}/{data[4:6]}/{data[:4]}"
+    return data
 
 if "last_response" in st.session_state and st.session_state["last_response"]:
     st.markdown("### Exportar resultado para Excel")
@@ -134,10 +142,20 @@ if "last_response" in st.session_state and st.session_state["last_response"]:
     buffer = BytesIO()
     wrote_excel = False
 
-    # Consulta CNPJ única: mostra empresa e sócios
+    # Caso 1: Consulta CNPJ única: mostra empresa e sócios em abas separadas
     if isinstance(resp, dict) and "empresa" in resp and "socios" in resp:
-        empresa_df = pd.DataFrame([resp["empresa"]])
-        socios_df = pd.DataFrame(resp["socios"])
+        empresa = resp["empresa"].copy()
+        # Formata datas da empresa
+        for col in empresa:
+            if "data_" in col and empresa[col]:
+                empresa[col] = formatar_data(empresa[col])
+        socios = resp["socios"]
+        for socio in socios:
+            for col in socio:
+                if "data_" in col and socio[col]:
+                    socio[col] = formatar_data(socio[col])
+        empresa_df = pd.DataFrame([empresa])
+        socios_df = pd.DataFrame(socios)
         st.subheader("Empresa")
         st.dataframe(empresa_df)
         st.subheader("Sócios")
@@ -146,29 +164,76 @@ if "last_response" in st.session_state and st.session_state["last_response"]:
             empresa_df.to_excel(writer, index=False, sheet_name="Empresa")
             socios_df.to_excel(writer, index=False, sheet_name="Socios")
         wrote_excel = True
-    # Outros casos: lista única
+
+    # Caso 2: Listas de empresas (ex: UF, município, CNAE) - sócios e cnae_secundaria em colunas únicas (json)
     else:
+        def flatten_empresa_socios(item):
+            empresa = item.get("empresa", {}).copy()
+            socios = item.get("socios", [])
+            # Sócios em coluna única (JSON string)
+            empresa["socios"] = socios if isinstance(socios, list) else []
+            # CNAEs secundários em coluna única (JSON string ou string separada por ; )
+            cnaes_sec = empresa.get("cnae_fiscal_secundaria", [])
+            if isinstance(cnaes_sec, list):
+                empresa["cnae_fiscal_secundaria"] = "; ".join(cnaes_sec)
+            # Formata datas da empresa
+            for col in empresa:
+                if "data_" in col and empresa[col]:
+                    empresa[col] = formatar_data(empresa[col])
+            # Formata datas dos sócios (apenas no array de sócios para exportar, na planilha fica na coluna 'socios')
+            for socio in empresa["socios"]:
+                for col in socio:
+                    if "data_" in col and socio[col]:
+                        socio[col] = formatar_data(socio[col])
+            return empresa
+
         to_df = None
-        if isinstance(resp, dict):
-            for key in ["resultado", "enderecos_duplicados", "telefones_duplicados", "emails_duplicados", "enderecos", "cnpjs", "dados"]:
-                if key in resp and isinstance(resp[key], list):
-                    to_df = pd.DataFrame(resp[key])
-                    break
-            if to_df is None:
-                for v in resp.values():
-                    if isinstance(v, list):
-                        to_df = pd.DataFrame(v)
-                        break
-        elif isinstance(resp, list):
-            to_df = pd.DataFrame(resp)
+
+        # Caso resposta seja dict com lista de empresas completas (ex: endpoints /uf, /municipio, etc)
+        if (
+            isinstance(resp, dict)
+            and "resultado" in resp
+            and isinstance(resp["resultado"], list)
+            and len(resp["resultado"]) > 0
+            and isinstance(resp["resultado"][0], dict)
+            and "empresa" in resp["resultado"][0]
+        ):
+            flattened = [flatten_empresa_socios(item) for item in resp["resultado"]]
+            to_df = pd.DataFrame(flattened)
+        # Caso resposta seja lista direta de empresas completas
+        elif (
+            isinstance(resp, list)
+            and len(resp) > 0
+            and isinstance(resp[0], dict)
+            and "empresa" in resp[0]
+        ):
+            flattened = [flatten_empresa_socios(item) for item in resp]
+            to_df = pd.DataFrame(flattened)
         else:
-            to_df = pd.DataFrame([resp])
+            # Para outros casos (listas simples, duplicados, etc)
+            if isinstance(resp, dict):
+                for key in ["resultado", "enderecos_duplicados", "telefones_duplicados", "emails_duplicados", "enderecos", "cnpjs", "dados"]:
+                    if key in resp and isinstance(resp[key], list):
+                        to_df = pd.DataFrame(resp[key])
+                        break
+                if to_df is None:
+                    for v in resp.values():
+                        if isinstance(v, list):
+                            to_df = pd.DataFrame(v)
+                            break
+            elif isinstance(resp, list):
+                to_df = pd.DataFrame(resp)
+            else:
+                to_df = pd.DataFrame([resp])
+
+        # Exibe e salva Excel
         if to_df is not None:
             st.dataframe(to_df)
             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
                 to_df.to_excel(writer, index=False, sheet_name="Dados")
             wrote_excel = True
 
+    # Botão de download se exportação feita
     if wrote_excel:
         buffer.seek(0)
         st.download_button(
