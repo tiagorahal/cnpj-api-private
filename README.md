@@ -1,20 +1,21 @@
 
+---
 
 # CNPJ API PRIVATE
 
-API privada para consultas completas de CNPJ com autenticação JWT, controle de limites, filtros avançados e cruzamento de dados.
+API privada para **consultas completas de CNPJ**, com autenticação JWT, limites de uso por plano, filtros avançados e cruzamento inteligente de dados empresariais.
 
 ---
 
 ## 🆕 Cadastro de Usuário
 
-Antes de tudo, crie um usuário para receber acesso:
+Antes de começar, **registre seu usuário** para obter acesso:
 
 ```bash
 curl -X POST "http://45.161.137.26:8430/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"email":"seu@email.com","password":"suaSenhaForte123"}'
-````
+```
 
 Se o cadastro for bem-sucedido, você receberá uma mensagem de confirmação.
 
@@ -22,7 +23,7 @@ Se o cadastro for bem-sucedido, você receberá uma mensagem de confirmação.
 
 ## 🔐 Autenticação (Login)
 
-Obtenha seu **token de acesso** (necessário para todas as consultas):
+Faça login para receber seu **token JWT** (necessário para todas as consultas):
 
 ```bash
 curl -X POST "http://45.161.137.26:8430/auth/login" \
@@ -30,7 +31,7 @@ curl -X POST "http://45.161.137.26:8430/auth/login" \
   -d '{"email":"seu@email.com","password":"suaSenhaForte123"}'
 ```
 
-Resposta exemplo:
+Resposta de exemplo:
 
 ```json
 {
@@ -39,7 +40,7 @@ Resposta exemplo:
 }
 ```
 
-Inclua sempre o token nas requisições:
+**Inclua o token** em todas as requisições:
 
 ```
 -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
@@ -51,19 +52,17 @@ Inclua sempre o token nas requisições:
 
 * **Conta gratuita:** 10 requisições por dia
 * **Conta limitada:** 3.000 requisições por mês
-* **Conta ilimitada:** sem restrição (consultar admin)
+* **Conta ilimitada:** sem restrições (solicite ao admin)
 
-**Obs:** Rotas avançadas (filtros e cruzamentos) exigem conta ativa (`is_active = 1` ou `2`).
-
----
-
-## 📚 Rotas Disponíveis e Exemplos
-
-> **Troque SEU\_TOKEN\_JWT\_AQUI pelo token recebido no login!**
+> ⚠️ **Atenção:** Rotas avançadas (filtros e cruzamentos) exigem conta ativa (`is_active = 1` ou `2`).
 
 ---
 
-### 1. Buscar CNPJ específico
+## 📚 Endpoints Disponíveis
+
+**Troque** `SEU_TOKEN_JWT_AQUI` pelo seu token!
+
+### 1. Buscar dados de um CNPJ específico
 
 ```bash
 curl -X GET "http://45.161.137.26:8430/api/cnpj/60409075000152" \
@@ -108,7 +107,7 @@ curl -X GET "http://45.161.137.26:8430/api/cnpj/cnae_secundaria/1052000?page=1" 
 
 ---
 
-### 6. Listar por UF + CNAE principal
+### 6. Listar empresas por UF + CNAE principal
 
 ```bash
 curl -X GET "http://45.161.137.26:8430/api/cnpj/uf/SP/cnae_principal/1099699?page=1" \
@@ -117,7 +116,7 @@ curl -X GET "http://45.161.137.26:8430/api/cnpj/uf/SP/cnae_principal/1099699?pag
 
 ---
 
-### 7. Listar por UF + CNAE secundária
+### 7. Listar empresas por UF + CNAE secundária
 
 ```bash
 curl -X GET "http://45.161.137.26:8430/api/cnpj/uf/SP/cnae_secundaria/1052000?page=1" \
@@ -126,7 +125,7 @@ curl -X GET "http://45.161.137.26:8430/api/cnpj/uf/SP/cnae_secundaria/1052000?pa
 
 ---
 
-### 8. Listar por Município + CNAE principal
+### 8. Listar empresas por Município + CNAE principal
 
 ```bash
 curl -X GET "http://45.161.137.26:8430/api/cnpj/municipio/SAO%20PAULO/cnae_principal/1099699?page=1" \
@@ -135,7 +134,7 @@ curl -X GET "http://45.161.137.26:8430/api/cnpj/municipio/SAO%20PAULO/cnae_princ
 
 ---
 
-### 9. Listar por Município + CNAE secundária
+### 9. Listar empresas por Município + CNAE secundária
 
 ```bash
 curl -X GET "http://45.161.137.26:8430/api/cnpj/municipio/SAO%20PAULO/cnae_secundaria/1052000?page=1" \
@@ -144,89 +143,93 @@ curl -X GET "http://45.161.137.26:8430/api/cnpj/municipio/SAO%20PAULO/cnae_secun
 
 ---
 
-## 🔗 Rotas de Cruzamento (Relacionamentos entre CNPJs)
+## 🔗 Rotas de Cruzamento & Relacionamentos
 
-> **Acesso restrito a usuários ativos (plano limitado ou ilimitado)!**
+> **⚠️ Acesso restrito:** apenas para usuários ativos (`is_active = 1` ou `2`).
 
----
-
-### 10. Buscar CNPJs que compartilham o **mesmo endereço**
+### 10. CNPJs com **mesmo endereço**
 
 ```bash
-curl -X GET "http://45.161.137.26:8430/api/cnpj/enderecos/compartilhados?endereco=QUADRA%205%20BLOCO%20B%20TORRE%20I,%20II,%20III" \
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/enderecos/compartilhados?endereco=RUA%20X" \
   -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
 ```
 
----
-
-### 11. Buscar CNPJs que compartilham o **mesmo e-mail**
+### 11. CNPJs com **mesmo e-mail**
 
 ```bash
-curl -X GET "http://45.161.137.26:8430/api/cnpj/emails/compartilhados?email=SECEX@BB.COM.BR" \
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/emails/compartilhados?email=EXEMPLO@MAIL.COM" \
   -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
 ```
 
----
-
-### 12. Buscar CNPJs que compartilham o **mesmo telefone**
+### 12. CNPJs com **mesmo telefone**
 
 ```bash
-curl -X GET "http://45.161.137.26:8430/api/cnpj/telefones/compartilhados?ddd=61&telefone=34939002" \
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/telefones/compartilhados?ddd=11&telefone=12345678" \
   -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
 ```
 
----
-
-### 13. Listar **endereços** compartilhados por mais de um CNPJ
+### 13. Listar **endereços** duplicados (usados por mais de um CNPJ)
 
 ```bash
-curl -X GET "http://45.161.137.26:8430/api/cnpj/enderecos/duplicados?minimo=2" \
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/enderecos/duplicados?minimo=2" \
   -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
 ```
 
----
-
-### 14. Listar **telefones** compartilhados por mais de um CNPJ
+### 14. Listar **telefones** duplicados
 
 ```bash
-curl -X GET "http://45.161.137.26:8430/api/cnpj/telefones/duplicados?minimo=2" \
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/telefones/duplicados?minimo=2" \
   -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
 ```
 
----
-
-### 15. Listar **e-mails** compartilhados por mais de um CNPJ
+### 15. Listar **e-mails** duplicados
 
 ```bash
-curl -X GET "http://45.161.137.26:8430/api/cnpj/emails/duplicados?minimo=2" \
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/emails/duplicados?minimo=2" \
   -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
 ```
-
----
 
 ### 16. Buscar **todos os vínculos** (endereços, e-mails, telefones) de um CNPJ
 
 ```bash
-curl -X GET "http://45.161.137.26:8430/api/cnpj/vinculos/60409075000152" \
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/vinculos/60409075000152" \
+  -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
+```
+
+### 17. Buscar **rede de relacionamentos** do CNPJ
+
+```bash
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/rede/60409075000152" \
+  -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
+```
+
+### 18. Análise de **grupo econômico** do CNPJ
+
+```bash
+curl -X GET "http://45.161.137.26:8430/api/cruzamentos/analise/grupo_economico/60409075000152" \
   -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
 ```
 
 ---
 
-## 🛡️ Segurança
+## 🛡️ Segurança & Política de Acesso
 
 * **Todas as rotas exigem autenticação JWT.**
-* Acesso a rotas de filtros/cruzamentos: apenas usuários ativos (limitado ou ilimitado).
-* Sua conta pode ser bloqueada em caso de uso abusivo.
+* Cruzamentos e consultas avançadas **exigem plano ativo**.
+* O uso abusivo pode gerar bloqueio automático do usuário.
+* Alterações de privilégio (`is_active`) apenas por administradores via painel/admin API.
 
 ---
 
 ## ℹ️ Sobre
 
-* **Base de dados:** Receita Federal + tabelas auxiliares (CNAE, Município, etc) + cruzamentos inteligentes.
-* **Formato das respostas:** JSON estruturado, trazendo informações completas da empresa, sócios, contatos e relacionamentos.
+* **Base de dados:** Receita Federal + tabelas auxiliares + cruzamentos inteligentes.
+* **Formato das respostas:** JSON estruturado, incluindo empresa, sócios, contatos e rede de vínculos.
+* **Administração:** Gerencie usuários e privilégios pelo painel admin seguro (Streamlit).
 
 ---
 
-**Dúvidas ou problemas?**
-Abra um issue ou contate o suporte responsável pela API.
+**Dúvidas, bugs ou sugestão?**
+Abra um *issue* ou contate o responsável pelo sistema.
+
+---
