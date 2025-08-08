@@ -6,3 +6,4 @@
 /venv
 database/dados-publicos
 database/dados-publicos-zip
+.env
