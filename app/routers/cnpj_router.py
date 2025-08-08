@@ -281,7 +281,7 @@ async def listar_por_uf(
 ):
     """Lista CNPJs por UF"""
     uf = uf.upper().strip()
-    page_size = 10
+    page_size = 50
     offset = (page - 1) * page_size
 
     async with AsyncSessionLocal() as session:
@@ -315,7 +315,7 @@ async def listar_por_municipio(
     user: dict = Depends(require_active_user)
 ):
     """Lista CNPJs por município"""
-    page_size = 10
+    page_size = 50
     offset = (page - 1) * page_size
 
     async with AsyncSessionLocal() as session:
@@ -366,7 +366,7 @@ async def listar_por_cnae_principal(
 ):
     """Lista CNPJs por CNAE principal"""
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 10
+    page_size = 50
     offset = (page - 1) * page_size
 
     async with AsyncSessionLocal() as session:
@@ -401,7 +401,7 @@ async def listar_por_cnae_secundaria(
 ):
     """Lista CNPJs por CNAE secundária"""
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 10
+    page_size = 50
     offset = (page - 1) * page_size
 
     like_pattern1 = f"{cnae_num},%"
@@ -458,7 +458,7 @@ async def listar_uf_cnae_principal(
 ):
     """Lista CNPJs por UF e CNAE principal"""
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 10
+    page_size = 50
     offset = (page - 1) * page_size
 
     async with AsyncSessionLocal() as session:
@@ -505,7 +505,7 @@ async def listar_uf_cnae_secundaria(
 ):
     """Lista CNPJs por UF e CNAE secundária"""
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 10
+    page_size = 50
     offset = (page - 1) * page_size
     like_pattern = f"%{cnae_num}%"
 
@@ -554,7 +554,7 @@ async def listar_municipio_cnae_principal(
 ):
     """Lista CNPJs por município e CNAE principal"""
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 10
+    page_size = 50
     offset = (page - 1) * page_size
 
     async with AsyncSessionLocal() as session:
@@ -611,7 +611,7 @@ async def listar_municipio_cnae_secundaria(
 ):
     """Lista CNPJs por município e CNAE secundária"""
     cnae_num = cnae.split(" ")[0].replace("-", "").strip() if "-" in cnae else cnae.strip()
-    page_size = 10
+    page_size = 50
     offset = (page - 1) * page_size
     like_pattern = f"%{cnae_num}%"
 

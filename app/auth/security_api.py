@@ -238,7 +238,7 @@ async def get_current_user_info(
     user_dict = dict(user_info._mapping)
     
     # Define plano baseado em is_active
-    plano = "Gratuito (10 req/dia)"
+    plano = "Gratuito (50 req/dia)"
     if user_dict["is_active"] == 1:
         plano = "Pago (3000 req/mês)"
     elif user_dict["is_active"] == 2:

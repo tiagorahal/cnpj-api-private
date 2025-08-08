@@ -87,15 +87,15 @@ async def check_and_update_rate_limit(user: dict, qtd_reqs: int = 1):
         last_request_month = row["last_request_month"]
 
         # Aplicar regras de rate limiting baseadas no plano
-        if is_active == 0:  # Plano gratuito: 10 requisições por dia
+        if is_active == 0:  # Plano gratuito: 50 requisições por dia
             # Reset contador diário se mudou o dia
             if str(last_request_date) != today:
                 request_count = 0
             
-            if request_count + qtd_reqs > 10:
+            if request_count + qtd_reqs > 50:
                 raise HTTPException(
-                    status_code=429, 
-                    detail="Limite diário de requisições atingido (10/dia). Faça upgrade para aumentar o limite."
+                    status_code=429,
+                    detail="Limite diário de requisições atingido (50/dia). Faça upgrade para aumentar o limite."
                 )
             
             request_count += qtd_reqs
