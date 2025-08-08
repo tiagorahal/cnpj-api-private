@@ -21,8 +21,8 @@ DASK_THREADS = 2     # Máx threads dask (use igual ao N_WORKERS)
 # ---------------------------------------------
 
 dataReferencia = 'xx/xx/2025'
-pasta_compactados = r"dados-publicos-zip"
-pasta_saida = r"dados-publicos"
+pasta_compactados = r"database/dados-publicos-zip"
+pasta_saida = r"database/dados-publicos"
 cam = os.path.join(pasta_saida, 'cnpj.db')
 sqlite_path_uri = f"sqlite:///{os.path.abspath(cam)}"
 
