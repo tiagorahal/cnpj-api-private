@@ -11,14 +11,7 @@ gunicorn
 psycopg2-binary         # PostgreSQL driver (sync)
 asyncpg                 # PostgreSQL driver (async)
 sqlalchemy              # ORM (sync/async)
-databases[postgresql]   # Abstração async DB para FastAPI
 aiosqlite               # SQLite async
-
-# ---------------------- #
-# Cache Redis
-# ---------------------- #
-redis
-aioredis
 
 # ---------------------- #
 # Parsing, Ingestão & Manipulação de Dados
@@ -28,6 +21,7 @@ dask
 dask-expr
 pyarrow
 openpyxl
+numpy
 
 # ---------------------- #
 # Utilidades & CLI
@@ -48,14 +42,12 @@ requests
 wget
 parfive
 beautifulsoup4
-bs4
 lxml
 
 # ---------------------- #
 # Serialização & Validação
 # ---------------------- #
 pydantic
-pydantic-settings
 PyYAML
 
 # ---------------------- #
@@ -66,5 +58,6 @@ bcrypt
 pyjwt
 
 # ---------------------- #
-# Fim
+# Front-end / Dashboard
 # ---------------------- #
+streamlit

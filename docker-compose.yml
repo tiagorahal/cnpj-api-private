@@ -1,0 +1,160 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15
+    container_name: cnpj_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: cnpj_rede
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d cnpj_rede"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cnpj_network
+
+  # Serviço de Download e Importação (roda uma vez)
+  importer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: importer
+    container_name: cnpj_importer
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Configurações do PostgreSQL
+      PG_HOST: db
+      PG_PORT: 5432
+      PG_DATABASE: cnpj_rede
+      PG_USER: admin
+      PG_PASSWORD: admin123
+      # Configurações de memória
+      MAX_RAM_GB: 45
+      MAX_SWAP_GB: 5
+      CHUNK_SIZE: 100000
+      N_WORKERS: 4
+      DASK_THREADS: 4
+      # Controle de download
+      SKIP_DOWNLOAD: ${SKIP_DOWNLOAD:-false}
+      SKIP_IMPORT: ${SKIP_IMPORT:-false}
+    volumes:
+      - dados_publicos:/dados-publicos
+      - dados_zip:/dados-publicos-zip
+      - ./logs:/logs
+    networks:
+      - cnpj_network
+    command: >
+      bash -c "
+        echo '🚀 Iniciando processo de importação...' &&
+        
+        if [ '$${SKIP_DOWNLOAD}' != 'true' ]; then
+          echo '📥 Baixando dados da Receita Federal...' &&
+          cd /scripts &&
+          python dados_cnpj_baixa.py || exit 1
+        else
+          echo '⏭️ Pulando download (SKIP_DOWNLOAD=true)'
+        fi &&
+        
+        if [ '$${SKIP_IMPORT}' != 'true' ]; then
+          echo '📊 Importando dados para PostgreSQL...' &&
+          cd /scripts &&
+          python import_cnpj_postgresql.py || exit 1
+        else
+          echo '⏭️ Pulando importação (SKIP_IMPORT=true)'
+        fi &&
+        
+        echo '✅ Processo concluído!' &&
+        touch /dados-publicos/.import_complete
+      "
+
+  # API FastAPI
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: cnpj_api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_USER: admin
+      DB_PASSWORD: admin123
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: cnpj_rede
+      SECRET_KEY: ${SECRET_KEY:-sua_chave_secreta_super_segura_aqui_32_chars_min}
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8430:8430"
+    volumes:
+      - ./app:/app/app:ro
+      - ./logs:/logs
+      - dados_publicos:/dados-publicos:ro
+    networks:
+      - cnpj_network
+    command: >
+      bash -c "
+        echo 'Aguardando importação dos dados...' &&
+        while [ ! -f /dados-publicos/.import_complete ]; do
+          echo 'Dados ainda sendo importados...'
+          sleep 30
+        done &&
+        echo '✅ Dados importados, iniciando API...' &&
+        cd /app &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8430 --workers 2
+      "
+    restart: unless-stopped
+
+  # Streamlit Dashboard
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: cnpj_streamlit
+    depends_on:
+      - api
+    environment:
+      API_BASE_URL: http://api:8430
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./app:/app/app:ro
+      - ./logs:/logs
+    networks:
+      - cnpj_network
+    command: >
+      bash -c "
+        cd /app &&
+        streamlit run app/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+      "
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    name: cnpj_pgdata
+  dados_publicos:
+    name: cnpj_dados_publicos
+  dados_zip:
+    name: cnpj_dados_zip
+
+networks:
+  cnpj_network:
+    name: cnpj_net
+    driver: bridge

@@ -1,35 +1,35 @@
 INFO:     Uvicorn running on http://0.0.0.0:8430 (Press CTRL+C to quit)
-INFO:     Started parent process [24540]
-INFO:     Started server process [24548]
+INFO:     Started parent process [3428]
+INFO:     Started server process [3436]
 INFO:     Waiting for application startup.
-INFO:     Started server process [24549]
 INFO:app.main:============================================================
 INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
-INFO:     Waiting for application startup.
 INFO:app.main:📍 Banco de dados: cnpj_rede
-INFO:     Started server process [24551]
 INFO:app.main:🌐 Host: 0.0.0.0
 INFO:app.main:🔌 Porta: 8430
 INFO:app.main:============================================================
-INFO:     Waiting for application startup.
-INFO:app.main:============================================================
-INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
-INFO:app.main:============================================================
-INFO:app.main:📍 Banco de dados: cnpj_rede
-INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
-INFO:app.main:🌐 Host: 0.0.0.0
-INFO:app.main:📍 Banco de dados: cnpj_rede
-INFO:app.main:🔌 Porta: 8430
-INFO:app.main:🌐 Host: 0.0.0.0
-INFO:app.main:============================================================
-INFO:app.main:🔌 Porta: 8430
-INFO:app.main:============================================================
-INFO:     Started server process [24550]
+INFO:     Started server process [3434]
 INFO:     Waiting for application startup.
 INFO:app.main:============================================================
 INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
 INFO:app.main:📍 Banco de dados: cnpj_rede
 INFO:app.main:🌐 Host: 0.0.0.0
+INFO:app.main:🔌 Porta: 8430
+INFO:app.main:============================================================
+INFO:     Started server process [3433]
+INFO:     Started server process [3435]
+INFO:     Waiting for application startup.
+INFO:     Waiting for application startup.
+INFO:app.main:============================================================
+INFO:app.main:============================================================
+INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
+INFO:app.main:🚀 CNPJ API - PostgreSQL iniciando...
+INFO:app.main:📍 Banco de dados: cnpj_rede
+INFO:app.main:📍 Banco de dados: cnpj_rede
+INFO:app.main:🌐 Host: 0.0.0.0
+INFO:app.main:🔌 Porta: 8430
+INFO:app.main:🌐 Host: 0.0.0.0
+INFO:app.main:============================================================
 INFO:app.main:🔌 Porta: 8430
 INFO:app.main:============================================================
 INFO:app.main:✅ Todos os schemas encontrados: ['cnpj', 'links', 'rede', 'security']
@@ -42,12 +42,38 @@ INFO:app.main:✅ Tabelas principais verificadas
 INFO:app.main:✅ Tabelas principais verificadas
 INFO:app.main:✅ Conexão com banco de dados estabelecida
 INFO:app.main:✅ Conexão com banco de dados estabelecida
-INFO:     Application startup complete.
-INFO:     Application startup complete.
-INFO:app.main:✅ Conexão com banco de dados estabelecida
 INFO:app.main:✅ Conexão com banco de dados estabelecida
 INFO:     Application startup complete.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:37310 - "POST /auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:37326 - "GET /api/cnpj/municipio/goiania?page=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33092 - "GET /api/cnpj/uf/GO?page=1 HTTP/1.1" 200 OK
+INFO:     Application startup complete.
+INFO:app.main:✅ Conexão com banco de dados estabelecida
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:app.main:============================================================
+INFO:app.main:👋 CNPJ API encerrando...
+INFO:app.main:============================================================
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3433]
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:app.main:============================================================
+INFO:app.main:👋 CNPJ API encerrando...
+INFO:app.main:============================================================
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3434]
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:app.main:============================================================
+INFO:app.main:👋 CNPJ API encerrando...
+INFO:app.main:============================================================
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3435]
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:app.main:============================================================
+INFO:app.main:👋 CNPJ API encerrando...
+INFO:app.main:============================================================
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3436]
+INFO:     Stopping parent process [3428]

@@ -15,8 +15,12 @@ import requests, wget, os, sys, time, glob, parfive
 #url_dados_abertos = 'http://200.152.38.155/CNPJ/dados_abertos_cnpj/'
 url_dados_abertos = 'https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/'
 
-pasta_zip = r"../dados-publicos-zip" #local dos arquivos zipados da Receita
-pasta_cnpj = '../dados-publicos'
+if os.path.exists("/dados-publicos-zip"):
+    pasta_zip = "/dados-publicos-zip"
+    pasta_cnpj = "/dados-publicos"
+else:
+    pasta_zip = "../dados-publicos-zip"
+    pasta_cnpj = "../dados-publicos"
 
 def requisitos():
     #se pastas não existirem, cria automaticamente
