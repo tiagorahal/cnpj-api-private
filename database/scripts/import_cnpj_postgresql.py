@@ -2,7 +2,12 @@
 Script unificado para importar base CNPJ para PostgreSQL
 Combina os 3 scripts originais em um único processo
 """
+import os
 
+if os.getenv("NON_INTERACTIVE") == "true":
+    def input(*args, **kwargs):
+        return "y"
+    
 import pandas as pd
 import sqlalchemy
 from sqlalchemy import create_engine, text
