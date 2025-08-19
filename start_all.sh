@@ -10,7 +10,15 @@ sudo service postgresql start
 # 3. Sobe a API FastAPI (em background, log para arquivo logs/uvicorn.log)
 cd ~/code/cnpj-api-private
 mkdir -p logs
-uvicorn app.main:app --host 0.0.0.0 --port 8430 --workers 17 > logs/uvicorn.log 2>&1 &
+uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port 8430 \
+  --workers 12 \
+  --limit-concurrency 20 \
+  --http httptools \
+  --loop uvloop \
+  --timeout-keep-alive 5 \
+  > logs/uvicorn.log 2>&1 &
 
 # 4. Sobe o painel streamlit (em background, log para logs/streamlit.log)
 cd ~/code/cnpj-api-private/app
