@@ -6,118 +6,6 @@ API privada para **consultas completas de CNPJ**, com autenticação JWT, limite
 
 ## 🚀 Instalação
 
-### Opção 1: Com Docker (Recomendado)
-
-#### Requisitos do Sistema
-
-- **Docker** e **Docker Compose** instalados
-- **50GB de espaço em disco** (para dados completos da Receita Federal)
-- **8GB+ de RAM** recomendado (mínimo 4GB)
-- **Conexão estável com internet** (download de ~5GB de dados)
-
-#### ⚙️ Configuração de Memória (IMPORTANTE!)
-
-Antes de iniciar, ajuste as configurações de memória no arquivo `database/scripts/import_cnpj_postgresql.py` de acordo com sua máquina:
-
-```python
-# Configurações de memória - AJUSTE CONFORME SUA MÁQUINA
-MAX_RAM_GB = 30      # Limite de RAM (use 70% da RAM disponível)
-MAX_SWAP_GB = 5      # Limite de SWAP
-CHUNK_SIZE = 100_000 # Tamanho do chunk (reduza se tiver pouca memória)
-N_WORKERS = 4        # Workers paralelos (número de cores da CPU)
-DASK_THREADS = 4     # Threads dask (igual a N_WORKERS)
-```
-
-**Recomendações por configuração:**
-
-| RAM do Sistema | MAX_RAM_GB | CHUNK_SIZE | N_WORKERS |
-|---------------|------------|------------|-----------|
-| 4GB           | 2          | 50_000     | 2         |
-| 8GB           | 5          | 75_000     | 2         |
-| 16GB          | 11         | 100_000    | 4         |
-| 32GB          | 22         | 150_000    | 6         |
-| 64GB+         | 45         | 200_000    | 8         |
-
-#### Setup Rápido (Teste)
-
-Para testar rapidamente a API sem baixar todos os dados da Receita:
-
-```bash
-# Clone o repositório
-git clone https://github.com/seu-usuario/cnpj-api-private.git
-cd cnpj-api-private
-
-# Setup rápido com dados de teste
-make quick-start
-```
-
-Este comando irá:
-- ✅ Configurar o banco PostgreSQL
-- ✅ Criar usuário admin (admin@cnpj.com / admin123)
-- ✅ Iniciar API em http://localhost:8430/docs
-- ✅ Iniciar Dashboard Admin em http://localhost:8501
-- ✅ Iniciar Interface de Consultas em http://localhost:8502
-
-#### Setup Completo (Produção)
-
-Para ambiente de produção com todos os dados da Receita Federal:
-
-```bash
-# Clone o repositório
-git clone https://github.com/seu-usuario/cnpj-api-private.git
-cd cnpj-api-private
-
-# IMPORTANTE: Ajuste as configurações de memória antes!
-# Edite: database/scripts/import_cnpj_postgresql.py
-
-# Setup completo com download da Receita Federal
-make full-setup
-```
-
-⚠️ **ATENÇÃO**: Este processo pode demorar **4-6 horas** e irá:
-- 📥 Baixar ~5GB de dados da Receita Federal
-- 💾 Importar para PostgreSQL (ocupará ~50GB)
-- 🔄 Criar índices e otimizações
-- ✅ Configurar API e Dashboards
-
-#### Comandos Docker Úteis
-
-```bash
-# Ver todos os comandos disponíveis
-make help
-
-# Iniciar serviços
-make up
-
-# Parar serviços
-make down
-
-# Ver logs
-make logs
-make logs-api    # Apenas API
-make logs-db     # Apenas banco
-
-# Acessar shell do container
-make shell      # Shell da API
-make db-shell   # Shell do PostgreSQL
-
-# Fazer backup do banco
-make backup
-
-# Restaurar backup
-make restore FILE=backups/arquivo.sql
-
-# Ver estatísticas do banco
-make stats
-
-# Reset completo (CUIDADO: apaga todos os dados!)
-make reset
-```
-
----
-
-### Opção 2: Instalação Manual (Sem Docker)
-
 #### Requisitos
 
 - **Python 3.11+**
@@ -432,8 +320,6 @@ cnpj-api-private/
 │   └── streamlit_front.py # Interface de consultas
 ├── database/              
 │   └── scripts/           # Scripts de importação
-├── docker-compose.yml     # Configuração Docker
-├── Dockerfile            # Build das imagens
 ├── Makefile              # Comandos úteis
 ├── requirements.txt      # Dependências Python
 └── init.sql             # Schema do banco
@@ -475,24 +361,6 @@ DEBUG_MODE=false     # Mantém container rodando se true
 - Aumente `N_WORKERS` se tiver cores de CPU disponíveis
 - Use SSD ao invés de HDD para melhor performance
 
-**Container não inicia:**
-```bash
-# Verificar logs
-docker compose logs -f importer
-
-# Entrar no container para debug
-docker compose run --rm importer bash
-```
-
-**PostgreSQL connection refused:**
-```bash
-# Verificar se PostgreSQL está rodando
-sudo systemctl status postgresql
-
-# Verificar configurações em pg_hba.conf
-sudo nano /etc/postgresql/15/main/pg_hba.conf
-# Adicione: host all all 127.0.0.1/32 md5
-```
 
 ### Contribuindo
 
